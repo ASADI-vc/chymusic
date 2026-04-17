@@ -166,6 +166,28 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
             NotifyStateChanged();
         }
     }
+    
+    public async Task<bool> RequestFolderAccessAsync()
+    {
+        return await jsRuntime.InvokeAsync<bool>("musicCache.requestFolderAccess");
+    }
+
+    public async Task<bool> IsFolderAccessGrantedAsync()
+    {
+        return await jsRuntime.InvokeAsync<bool>("musicCache.isFolderAccessGranted");
+    }
+    
+    public async Task<bool> IsFileSystemAccessSupportedAsync()
+    {
+        try
+        {
+            return await jsRuntime.InvokeAsync<bool>("musicCache.isFileSystemAccessSupported");
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     private void NotifyStateChanged() => StateChanged?.Invoke();
 }

@@ -37,6 +37,20 @@ else
                 <strong>@(_overview?.GenreCount ?? 0)</strong>
             </div>
         </div>
+        <div class="hero-actions">
+            @if (_isFileSystemAccessSupported)
+            {
+                <button class="pill-button" @onclick="RequestFolderAccess" disabled="@(_isFolderAccessGranted)">
+                    @(_isFolderAccessGranted ? "Folder Access Granted" : "Choose Music Folder")
+                </button>
+            }
+            else
+            {
+                <button class="pill-button" disabled title="Your browser does not support folder selection">
+                    📁 Folder Access Unavailable
+                </button>
+            }
+        </div>
     </section>
 
     <section class="search-shell">
@@ -172,7 +186,29 @@ else
     private IReadOnlyList<MusicAlbumSummary> _featuredAlbums = [];
     private IReadOnlyList<MusicTrackSummary> _freshTracks = [];
     private MusicSearchResult _searchResults = new();
+    private bool _isFolderAccessGranted;
+    private bool _isFileSystemAccessSupported;
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _isFolderAccessGranted = await Playback.IsFolderAccessGrantedAsync();
+            _isFileSystemAccessSupported = await Playback.IsFileSystemAccessSupportedAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task RequestFolderAccess()
+    {
+        var success = await Playback.RequestFolderAccessAsync();
+        if (success)
+        {
+            _isFolderAccessGranted = true;
+            StateHasChanged();
+        }
+    }
+    
     protected override async Task OnInitializedAsync()
     {
         var overviewTask = CatalogService.GetOverviewAsync();
