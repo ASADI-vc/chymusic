@@ -61,12 +61,15 @@ window.musicCache = (() => {
         }
 
         try {
-            const response = await fetch(remoteUrl, {
+            // Create a new Request object to set headers
+            const request = new Request(remoteUrl, {
                 mode: "cors",
                 cache: "no-store",
                 credentials: "omit",
-                referrerPolicy: "no-referrer",
+                referrerPolicy: "no-referrer", // 👈 Crucial: Do not send a referrer
             });
+
+            const response = await fetch(request);
 
             if (!response.ok) {
                 return false;
@@ -75,7 +78,8 @@ window.musicCache = (() => {
             const blob = await response.blob();
             await writeTrack({ id, remoteUrl, blob, cachedAt: new Date().toISOString() });
             return true;
-        } catch {
+        } catch (error) {
+            console.warn('Prefetch failed (likely CORS or hotlink protection):', error);
             return false;
         }
     }
