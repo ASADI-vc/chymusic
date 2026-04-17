@@ -189,5 +189,29 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
         }
     }
 
+    public async Task<bool> ReconnectFolderAsync()
+    {
+        try
+        {
+            return await jsRuntime.InvokeAsync<bool>("musicCache.reconnectFolder");
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> HasStoredHandleAsync()
+    {
+        try
+        {
+            return await jsRuntime.InvokeAsync<bool>("musicCache.hasStoredHandle");
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private void NotifyStateChanged() => StateChanged?.Invoke();
 }

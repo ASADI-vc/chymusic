@@ -40,13 +40,24 @@ else
         <div class="hero-actions">
             @if (_isFileSystemAccessSupported)
             {
-                <button class="pill-button" @onclick="RequestFolderAccess" disabled="@(_isFolderAccessGranted)">
-                    @(_isFolderAccessGranted ? "Folder Access Granted" : "Choose Music Folder")
+                <button class="pill-button" @onclick="HandleFolderAction" disabled="@(_isFolderAccessGranted)">
+                    @if (_isFolderAccessGranted)
+                    {
+                        <span>✅ Folder Connected</span>
+                    }
+                    else if (_hasStoredHandle)
+                    {
+                        <span>🔌 Reconnect Music Folder</span>
+                    }
+                    else
+                    {
+                        <span>📁 Choose Music Folder</span>
+                    }
                 </button>
             }
             else
             {
-                <button class="pill-button" disabled title="Your browser does not support folder selection">
+                <button class="pill-button" disabled title="Browser not supported">
                     📁 Folder Access Unavailable
                 </button>
             }
@@ -188,6 +199,7 @@ else
     private MusicSearchResult _searchResults = new();
     private bool _isFolderAccessGranted;
     private bool _isFileSystemAccessSupported;
+    private bool _hasStoredHandle;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -222,8 +234,38 @@ else
         _featuredAlbums = featuredTask.Result;
         _freshTracks = freshTask.Result;
         _isLoading = false;
+
+        await Task.Delay(100);
+        _isFolderAccessGranted = await Playback.IsFolderAccessGrantedAsync();
+        _isFileSystemAccessSupported = await Playback.IsFileSystemAccessSupportedAsync();
+        _hasStoredHandle = await Playback.HasStoredHandleAsync();
+        StateHasChanged();
     }
 
+    private async Task HandleFolderAction()
+    {
+        if (_hasStoredHandle && !_isFolderAccessGranted)
+        {
+            // Reconnect to existing folder
+            var success = await Playback.ReconnectFolderAsync();
+            if (success)
+            {
+                _isFolderAccessGranted = true;
+            }
+        }
+        else
+        {
+            // Choose new folder
+            var success = await Playback.RequestFolderAccessAsync();
+            if (success)
+            {
+                _isFolderAccessGranted = true;
+                _hasStoredHandle = true;
+            }
+        }
+        StateHasChanged();
+    }
+    
     private async Task HandleSearchChanged(ChangeEventArgs args)
     {
         _query = args.Value?.ToString();
