@@ -1,0 +1,249 @@
+@page "/"
+@inject MusicCatalogService CatalogService
+@inject MusicSearchService SearchService
+@inject PlaybackService Playback
+@inject NavigationManager Navigation
+
+<PageTitle>MusicWeb Player</PageTitle>
+
+@if (_isLoading)
+{
+    <section class="hero-card loading-card">
+        <p class="eyebrow">Loading music catalog</p>
+        <h1>Preparing your library and search index...</h1>
+    </section>
+}
+else
+{
+    <section class="hero-card">
+        <div>
+            <p class="eyebrow">Standalone music player</p>
+            <h1>Search albums fast, stream instantly, and keep played tracks cached when the host allows it.</h1>
+            <p class="hero-copy">
+                Built from your scraped catalog with @(_overview?.AlbumCount ?? 0) albums and @(_overview?.TrackCount ?? 0) tracks.
+            </p>
+        </div>
+        <div class="hero-stats">
+            <div>
+                <span>Albums</span>
+                <strong>@(_overview?.AlbumCount ?? 0)</strong>
+            </div>
+            <div>
+                <span>Tracks</span>
+                <strong>@(_overview?.TrackCount ?? 0)</strong>
+            </div>
+            <div>
+                <span>Genres</span>
+                <strong>@(_overview?.GenreCount ?? 0)</strong>
+            </div>
+        </div>
+    </section>
+
+    <section class="search-shell">
+        <input class="search-box"
+               placeholder="Search albums, artists, genres, tracks, tags..."
+               value="@_query"
+               @oninput="HandleSearchChanged" />
+        <p class="search-hint">Search runs in a background worker with debounce, so typing stays smooth even with 10k+ albums.</p>
+        @if (_isSearching)
+        {
+            <p class="search-status">Searching...</p>
+        }
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_query))
+    {
+        <section class="content-grid search-results-grid">
+            <div class="panel-card wide-panel">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Search</p>
+                        <h2>Albums</h2>
+                    </div>
+                    <span>@_searchResults.Albums.Count result(s)</span>
+                </div>
+                <div class="album-grid">
+                    @foreach (var album in _searchResults.Albums)
+                    {
+                        <article class="album-card">
+                            <button class="cover-button" @onclick="() => OpenAlbum(album.AlbumId)">
+                                <img src="@CoverUrl(album.CoverImageUrl)" alt="@album.Title" />
+                            </button>
+                            <div>
+                                <strong>@album.Title</strong>
+                                <p>@album.Artist</p>
+                                <span>@album.Genre</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="pill-button" @onclick="() => PlayAlbumAsync(album.AlbumId)">Play album</button>
+                                <button class="ghost-button" @onclick="() => OpenAlbum(album.AlbumId)">Details</button>
+                            </div>
+                        </article>
+                    }
+                </div>
+            </div>
+
+            <div class="panel-card wide-panel">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Search</p>
+                        <h2>Tracks</h2>
+                    </div>
+                    <span>@_searchResults.Tracks.Count result(s)</span>
+                </div>
+                <div class="track-list">
+                    @foreach (var match in _searchResults.Tracks)
+                    {
+                        <button class="track-row" @onclick="() => PlayTrackAsync(match.AlbumId, match.TrackId)">
+                            <span class="track-index">@match.Index</span>
+                            <div class="track-copy">
+                                <strong>@match.Title</strong>
+                                <span>@match.Artist - @match.AlbumTitle</span>
+                            </div>
+                            <span class="track-meta">@match.Genre</span>
+                        </button>
+                    }
+                </div>
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="content-grid">
+            <div class="panel-card">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Featured</p>
+                        <h2>Popular releases</h2>
+                    </div>
+                </div>
+                <div class="album-grid">
+                    @foreach (var album in _featuredAlbums)
+                    {
+                        <article class="album-card">
+                            <button class="cover-button" @onclick="() => OpenAlbum(album.Id)">
+                                <img src="@CoverUrl(album.CoverImageUrl)" alt="@album.DisplayTitle" />
+                            </button>
+                            <div>
+                                <strong>@album.DisplayTitle</strong>
+                                <p>@album.DisplayArtist</p>
+                                <span>@album.Genre</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="pill-button" @onclick="() => PlayAlbumAsync(album.Id)">Play</button>
+                                <button class="ghost-button" @onclick="() => OpenAlbum(album.Id)">Details</button>
+                            </div>
+                        </article>
+                    }
+                </div>
+            </div>
+
+            <div class="panel-card">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Fresh finds</p>
+                        <h2>Recently scraped tracks</h2>
+                    </div>
+                </div>
+                <div class="track-list compact-list">
+                    @foreach (var track in _freshTracks)
+                    {
+                        <button class="track-row" @onclick="() => PlayTrackAsync(track.AlbumId, track.TrackId)">
+                            <span class="track-index">@track.Index</span>
+                            <div class="track-copy">
+                                <strong>@track.Title</strong>
+                                <span>@track.Artist - @track.AlbumTitle</span>
+                            </div>
+                            <span class="track-meta">@track.Genre</span>
+                        </button>
+                    }
+                </div>
+            </div>
+        </section>
+    }
+}
+
+@code {
+    private MusicCatalogOverview? _overview;
+    private bool _isLoading = true;
+    private bool _isSearching;
+    private string? _query;
+    private int _searchVersion;
+    private IReadOnlyList<MusicAlbumSummary> _featuredAlbums = [];
+    private IReadOnlyList<MusicTrackSummary> _freshTracks = [];
+    private MusicSearchResult _searchResults = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var overviewTask = CatalogService.GetOverviewAsync();
+        var featuredTask = CatalogService.GetFeaturedAlbumsAsync();
+        var freshTask = CatalogService.GetFreshTracksAsync();
+        var searchInitTask = SearchService.InitializeAsync();
+
+        await Task.WhenAll(overviewTask, featuredTask, freshTask, searchInitTask);
+
+        _overview = overviewTask.Result;
+        _featuredAlbums = featuredTask.Result;
+        _freshTracks = freshTask.Result;
+        _isLoading = false;
+    }
+
+    private async Task HandleSearchChanged(ChangeEventArgs args)
+    {
+        _query = args.Value?.ToString();
+        var localVersion = ++_searchVersion;
+
+        if (string.IsNullOrWhiteSpace(_query))
+        {
+            _isSearching = false;
+            _searchResults = new MusicSearchResult();
+            return;
+        }
+
+        _isSearching = true;
+        await Task.Delay(220);
+
+        if (localVersion != _searchVersion)
+        {
+            return;
+        }
+
+        _searchResults = await SearchService.SearchAsync(_query);
+
+        if (localVersion == _searchVersion)
+        {
+            _isSearching = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task PlayAlbumAsync(int albumId)
+    {
+        var album = await CatalogService.GetAlbumAsync(albumId);
+        if (album is not null)
+        {
+            await Playback.PlayAlbumAsync(album);
+        }
+    }
+
+    private async Task PlayTrackAsync(int albumId, int trackId)
+    {
+        var album = await CatalogService.GetAlbumAsync(albumId);
+        if (album is not null)
+        {
+            await Playback.PlayTrackAsync(album, trackId);
+        }
+    }
+
+    private void OpenAlbum(int albumId)
+    {
+        Navigation.NavigateTo($"/album/{albumId}");
+    }
+
+    private static string CoverUrl(string? coverImageUrl)
+    {
+        return string.IsNullOrWhiteSpace(coverImageUrl)
+            ? "/favicon.png"
+            : coverImageUrl;
+    }
+}

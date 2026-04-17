@@ -1,0 +1,78 @@
+# Build outputs and intermediate files
+[Bb]in/
+[Oo]bj/
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio / Rider / VS Code cache files
+.vs/
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa]rm/
+[Aa]rm64/
+bld/
+
+# NuGet / package management
+packages/
+*.nupkg
+*.snupkg
+project.lock.json
+project.assets.json
+*.nuget.props
+*.nuget.targets
+
+# .NET Core / ASP.NET Core specific
+appsettings.Development.json
+launchSettings.json
+*.log
+*.tmp
+*.pid
+*.seed
+*.pid.lock
+
+# Blazor WASM specific – client-side framework files are generated
+wwwroot/_framework/
+wwwroot/_content/
+wwwroot/data/
+
+# Node / JavaScript (if you use npm / Node tools)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Publish output
+[Mm]icrosoft/
+[Pp]ublish/
+
+# Test results
+[Tt]est[Rr]esults/
+*.trx
+*.coverage
+*.coveragexml
+
+# OS generated files
+Thumbs.db
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+*.db
+appsettings.json
+*.txt

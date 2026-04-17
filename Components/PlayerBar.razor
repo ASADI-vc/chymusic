@@ -1,0 +1,86 @@
+@implements IDisposable
+@inject PlaybackService Playback
+
+<div class="player-shell @(Playback.CurrentTrack is null ? "is-empty" : string.Empty)">
+    @if (Playback.CurrentTrack is null || Playback.CurrentAlbum is null)
+    {
+        <div class="player-empty">
+            <div>
+                <p class="eyebrow">Ready to listen</p>
+                <strong>Pick any track or album to start streaming.</strong>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="player-now">
+            <img src="@CoverUrl(Playback.CurrentAlbum.CoverImageUrl)" alt="@Playback.CurrentAlbum.DisplayTitle" />
+            <div>
+                <p class="eyebrow">Now playing</p>
+                <strong>@Playback.CurrentTrack.Title</strong>
+                <span>@Playback.CurrentAlbum.DisplayArtist - @Playback.CurrentAlbum.DisplayTitle</span>
+                @if (Playback.PlaybackBlocked && !string.IsNullOrWhiteSpace(Playback.PlaybackError))
+                {
+                    <span class="player-warning">@Playback.PlaybackError</span>
+                }
+            </div>
+        </div>
+        <div class="player-controls">
+            <button class="ghost-button" @onclick="Playback.PlayPreviousAsync" disabled="@(!Playback.HasPrevious)">Prev</button>
+            <button class="ghost-button" @onclick="Playback.PlayNextAsync" disabled="@(!Playback.HasNext)">Next</button>
+            <span class="cache-state @(Playback.IsCached ? "is-ready" : string.Empty)">
+                @(Playback.IsCached ? "Cached on this device" : Playback.IsCaching ? "Caching in background" : Playback.IsPreparing ? "Preparing stream" : "Streaming")
+            </span>
+            @if (!string.IsNullOrWhiteSpace(Playback.CurrentTrack.PreferredUrl))
+            {
+                <a class="ghost-button link-button" href="@Playback.CurrentTrack.PreferredUrl" target="_blank" rel="noreferrer">Open file</a>
+            }
+        </div>
+        <div class="player-audio">
+            <audio @key="Playback.PlaybackVersion"
+                   controls
+                   autoplay
+                   preload="metadata"
+                   crossorigin="anonymous"
+                   referrerpolicy="no-referrer"
+                   src="@Playback.CurrentSourceUrl"
+                   @onended="HandleEnded"
+                   @onerror="HandleError">
+            </audio>
+        </div>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Playback.StateChanged += HandlePlaybackChanged;
+    }
+
+    private Task HandleEnded()
+    {
+        return Playback.HandleTrackEndedAsync();
+    }
+
+    private Task HandleError()
+    {
+        return Playback.ReportPlaybackErrorAsync();
+    }
+
+    private void HandlePlaybackChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private static string CoverUrl(string? coverImageUrl)
+    {
+        return string.IsNullOrWhiteSpace(coverImageUrl)
+            ? "/favicon.png"
+            : coverImageUrl;
+    }
+
+    public void Dispose()
+    {
+        Playback.StateChanged -= HandlePlaybackChanged;
+    }
+}
