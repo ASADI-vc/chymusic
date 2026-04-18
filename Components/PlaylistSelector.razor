@@ -1,0 +1,223 @@
+@using MusicWeb.Services
+@inject PlaylistService PlaylistService
+@inject MusicCatalogService CatalogService
+@inject IJSRuntime JS
+
+<div class="playlist-selector">
+    <button class="ghost-button" @onclick="ToggleDropdown" title="Add to playlist">
+        <span>➕</span>
+        <span class="button-text">Add to playlist</span>
+    </button>
+
+    @if (_showDropdown)
+    {
+        <div class="dropdown-menu" @onclick:stopPropagation="true">
+            <div class="dropdown-header">
+                <span>Save to...</span>
+                <button class="close-btn" @onclick="ToggleDropdown">✕</button>
+            </div>
+            <div class="dropdown-options">
+                @if (_playlists.Count == 0)
+                {
+                    <p class="dropdown-empty">No playlists yet.</p>
+                }
+                else
+                {
+                    @foreach (var playlist in _playlists)
+                    {
+                        <button class="dropdown-item" @onclick="() => AddToPlaylist(playlist.Id)">
+                            <span>@playlist.Name</span>
+                            <span class="track-count">@playlist.Tracks.Count</span>
+                        </button>
+                    }
+                }
+            </div>
+            <div class="dropdown-footer">
+                <button class="new-playlist-btn" @onclick="CreateNewPlaylist">+ Create new playlist</button>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .playlist-selector {
+        position: relative;
+        display: inline-block;
+    }
+
+    .button-text {
+        margin-left: 0.3rem;
+    }
+
+    .dropdown-menu {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 0.5rem;
+        min-width: 220px;
+        background: var(--panel-strong);
+        border: 1px solid var(--line);
+        border-radius: 1.2rem;
+        box-shadow: var(--shadow);
+        z-index: 100;
+        backdrop-filter: blur(18px);
+        padding: 0.5rem 0;
+    }
+
+    .dropdown-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 0.9rem;
+    }
+
+    .close-btn {
+        background: none;
+        border: none;
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 1.1rem;
+        padding: 0;
+        line-height: 1;
+    }
+
+    .dropdown-options {
+        max-height: 280px;
+        overflow-y: auto;
+    }
+
+    .dropdown-empty {
+        padding: 1rem;
+        text-align: center;
+        color: var(--muted);
+        margin: 0;
+    }
+
+    .dropdown-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 0.75rem 1rem;
+        background: transparent;
+        border: none;
+        color: var(--text);
+        text-align: left;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+
+    .dropdown-item:hover {
+        background: rgba(255, 255, 255, 0.06);
+    }
+
+    .track-count {
+        font-size: 0.8rem;
+        color: var(--muted);
+    }
+
+    .dropdown-footer {
+        padding: 0.5rem 0.5rem 0;
+        border-top: 1px solid var(--line);
+    }
+
+    .new-playlist-btn {
+        width: 100%;
+        padding: 0.7rem;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 999px;
+        color: var(--accent-2);
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+
+    .new-playlist-btn:hover {
+        background: rgba(255, 177, 75, 0.12);
+    }
+</style>
+
+@code {
+    [Parameter] public TrackIdentifier? Track { get; set; }
+    [Parameter] public AlbumIdentifier? Album { get; set; }
+    [Parameter] public EventCallback OnAdded { get; set; }
+
+    private bool _showDropdown;
+    private List<Playlist> _playlists = new();
+
+    public class TrackIdentifier
+    {
+        public int AlbumId { get; set; }
+        public int TrackId { get; set; }
+    }
+
+    public class AlbumIdentifier
+    {
+        public int AlbumId { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPlaylists();
+    }
+
+    private async Task LoadPlaylists()
+    {
+        _playlists = await PlaylistService.GetAllPlaylistsAsync();
+    }
+
+    private async Task ToggleDropdown()
+    {
+        _showDropdown = !_showDropdown;
+        if (_showDropdown)
+        {
+            await LoadPlaylists();
+        }
+    }
+
+    private async Task AddToPlaylist(string playlistId)
+    {
+        bool success = false;
+        if (Track != null)
+        {
+            var album = await CatalogService.GetAlbumAsync(Track.AlbumId);
+            var track = album?.Tracks.FirstOrDefault(t => t.Id == Track.TrackId);
+            if (track != null && album != null)
+            {
+                success = await PlaylistService.AddTrackToPlaylistAsync(playlistId, track, album);
+            }
+        }
+        else if (Album != null)
+        {
+            var album = await CatalogService.GetAlbumAsync(Album.AlbumId);
+            if (album != null)
+            {
+                foreach (var track in album.Tracks.Where(t => t.HasSource))
+                {
+                    await PlaylistService.AddTrackToPlaylistAsync(playlistId, track, album);
+                }
+                success = true;
+            }
+        }
+
+        if (success)
+        {
+            _showDropdown = false;
+            await OnAdded.InvokeAsync();
+        }
+    }
+
+    private async Task CreateNewPlaylist()
+    {
+        var name = await JS.InvokeAsync<string>("prompt", "New playlist name:");
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        var playlist = await PlaylistService.CreatePlaylistAsync(name);
+        await LoadPlaylists();
+        await AddToPlaylist(playlist.Id);
+    }
+}

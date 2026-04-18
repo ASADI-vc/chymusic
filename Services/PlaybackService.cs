@@ -212,6 +212,31 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
             return false;
         }
     }
+    
+    public async Task PlayPlaylistAsync(Playlist playlist, int startIndex = 0)
+    {
+        if (playlist.Tracks.Count == 0) return;
+
+        var tracks = playlist.Tracks.Select(pt => new MusicTrack
+        {
+            Id = pt.TrackId,
+            Index = pt.Index,
+            Title = pt.Title,
+            StreamUrl = pt.RemoteUrl ?? string.Empty
+        }).ToList();
+
+        var dummyAlbum = new MusicAlbum
+        {
+            Id = 0,
+            TitleFa = playlist.Name,
+            ArtistName = "Various Artists",
+            CoverImageUrl = playlist.CoverImageUrl,
+            Tracks = tracks
+        };
+
+        _queueAlbum = dummyAlbum;
+        await PlayQueueAsync(tracks, Math.Clamp(startIndex, 0, tracks.Count - 1));
+    }
 
     private void NotifyStateChanged() => StateChanged?.Invoke();
 }

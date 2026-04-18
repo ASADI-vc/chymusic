@@ -1,0 +1,85 @@
+@page "/playlists"
+@using MusicWeb.Components
+@inject PlaylistService PlaylistService
+@inject PlaybackService Playback
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Playlists - MusicWeb</PageTitle>
+
+<section class="hero-card">
+    <div>
+        <p class="eyebrow">Your Library</p>
+        <h1>Playlists</h1>
+        <p class="hero-copy">Create and manage custom playlists.</p>
+    </div>
+    <div class="hero-actions">
+        <button class="pill-button" @onclick="CreateNewPlaylist">+ New Playlist</button>
+    </div>
+</section>
+
+<section class="content-grid">
+    <div class="panel-card wide-panel">
+        <div class="section-heading">
+            <h2>All Playlists</h2>
+            <span>@_playlists.Count total</span>
+        </div>
+
+        @if (_playlists.Count == 0)
+        {
+            <p class="muted">No playlists yet. Click "New Playlist" to get started.</p>
+        }
+        else
+        {
+            <div class="album-grid">
+                @foreach (var playlist in _playlists.OrderByDescending(p => p.UpdatedAt))
+                {
+                    <article class="album-card">
+                        <button class="cover-button" @onclick="() => OpenPlaylist(playlist.Id)">
+                            <img src="@(playlist.CoverImageUrl ?? "/favicon.png")" alt="@playlist.Name" />
+                        </button>
+                        <div>
+                            <strong>@playlist.Name</strong>
+                            <p>@playlist.Tracks.Count tracks</p>
+                            <span>Updated @playlist.UpdatedAt.ToString("d")</span>
+                        </div>
+                        <div class="card-actions">
+                            <button class="pill-button" @onclick="() => PlayPlaylist(playlist)">Play</button>
+                            <button class="ghost-button" @onclick="() => OpenPlaylist(playlist.Id)">Edit</button>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    private List<Playlist> _playlists = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPlaylists();
+    }
+
+    private async Task LoadPlaylists()
+    {
+        _playlists = await PlaylistService.GetAllPlaylistsAsync();
+    }
+
+    private async Task CreateNewPlaylist()
+    {
+        var name = await JS.InvokeAsync<string>("prompt", "Enter playlist name:");
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        var playlist = await PlaylistService.CreatePlaylistAsync(name);
+        Navigation.NavigateTo($"/playlist/{playlist.Id}");
+    }
+
+    private void OpenPlaylist(string id) => Navigation.NavigateTo($"/playlist/{id}");
+
+    private async Task PlayPlaylist(Playlist playlist)
+    {
+        await Playback.PlayPlaylistAsync(playlist);
+    }
+}

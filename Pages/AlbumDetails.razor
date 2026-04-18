@@ -1,4 +1,5 @@
 @page "/album/{Id:int}"
+@using MusicWeb.Components
 @inject MusicCatalogService CatalogService
 @inject PlaybackService Playback
 
@@ -44,6 +45,7 @@ else
                 {
                     <a class="ghost-button link-button" href="@_album.ZipDownloadUrl" target="_blank" rel="noreferrer">Album ZIP</a>
                 }
+                <PlaylistSelector Album="@(new PlaylistSelector.AlbumIdentifier { AlbumId = _album.Id })" />
             </div>
         </div>
     </section>
@@ -59,14 +61,20 @@ else
             <div class="track-list">
                 @foreach (var track in _album.Tracks.OrderBy(track => track.Index))
                 {
-                    <button class="track-row" @onclick="() => Playback.PlayTrackAsync(_album, track.Id)" disabled="@(!track.HasSource)">
-                        <span class="track-index">@track.Index</span>
-                        <div class="track-copy">
+                    <div class="track-row">
+                        <span class="track-index" @onclick="() => Playback.PlayTrackAsync(_album, track.Id)">@track.Index</span>
+                        <div class="track-copy" @onclick="() => Playback.PlayTrackAsync(_album, track.Id)">
                             <strong>@track.Title</strong>
                             <span>@(_album.DisplayArtist) - @(_album.DisplayTitle)</span>
                         </div>
-                        <span class="track-meta">@(track.HasSource ? "Play" : "Missing source")</span>
-                    </button>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <span class="track-meta">@(track.HasSource ? "Play" : "Missing source")</span>
+                            @if (track.HasSource)
+                            {
+                                <PlaylistSelector Track="@(new PlaylistSelector.TrackIdentifier { AlbumId = _album.Id, TrackId = track.Id })" />
+                            }
+                        </div>
+                    </div>
                 }
             </div>
         </div>
@@ -112,8 +120,7 @@ else
 }
 
 @code {
-    [Parameter]
-    public int Id { get; set; }
+    [Parameter] public int Id { get; set; }
 
     private MusicAlbum? _album;
 
@@ -122,10 +129,6 @@ else
         _album = await CatalogService.GetAlbumAsync(Id);
     }
 
-    private static string CoverUrl(string? coverImageUrl)
-    {
-        return string.IsNullOrWhiteSpace(coverImageUrl)
-            ? "/favicon.png"
-            : coverImageUrl;
-    }
+    private static string CoverUrl(string? coverImageUrl) =>
+        string.IsNullOrWhiteSpace(coverImageUrl) ? "/favicon.png" : coverImageUrl;
 }
