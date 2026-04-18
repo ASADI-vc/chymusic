@@ -38,11 +38,15 @@ export function getBoundingClientRect(element) {
 
 export function getTimeInfo(element) {
     if (!element) return { currentTime: 0, duration: 0 };
-    return { currentTime: element.currentTime, duration: element.duration };
+    return {
+        currentTime: element.currentTime || 0,
+        duration: element.duration && isFinite(element.duration) ? element.duration : 0
+    };
 }
 
 export function getBufferedPercent(element) {
     if (!element || element.buffered.length === 0) return 0;
     const buffered = element.buffered.end(element.buffered.length - 1);
-    return (buffered / element.duration) * 100;
+    const duration = element.duration && isFinite(element.duration) ? element.duration : 1;
+    return (buffered / duration) * 100;
 }

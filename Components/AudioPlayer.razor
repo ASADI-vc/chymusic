@@ -4,26 +4,48 @@
 
 <div class="custom-audio-player">
     <button class="play-pause-btn" @onclick="TogglePlayPause" disabled="@(!_hasAudio)" title="@(_isPlaying ? "Pause" : "Play")">
-        <span>@(_isPlaying ? "⏸" : "▶")</span>
+        <svg viewBox="0 0 24 24" width="24" height="24">
+            @if (_isPlaying)
+            {
+                <path fill="currentColor" d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+            }
+            else
+            {
+                <path fill="currentColor" d="M8 5v14l11-7z"/>
+            }
+        </svg>
     </button>
 
-    <div class="progress-container" @ref="_progressContainer" @onclick="HandleProgressClick">
-        <div class="progress-buffered" style="width: @(_bufferedPercent.ToString("0.0", CultureInfo.InvariantCulture))%"></div>
-        <div class="progress-fill" style="width: @(_currentPercent.ToString("0.0", CultureInfo.InvariantCulture))%"></div>
-        <div class="progress-thumb" style="left: @(_currentPercent.ToString("0.0", CultureInfo.InvariantCulture))%"></div>
+    <div class="player-main">
+        <div class="time-current">@FormatTime(_currentTime)</div>
+        <div class="progress-container" @ref="_progressContainer" @onclick="HandleProgressClick">
+            <div class="progress-buffered" style="width: @(_bufferedPercent.ToString("0.0", CultureInfo.InvariantCulture))%"></div>
+            <div class="progress-fill" style="width: @(_currentPercent.ToString("0.0", CultureInfo.InvariantCulture))%"></div>
+            <div class="progress-thumb" style="left: @(_currentPercent.ToString("0.0", CultureInfo.InvariantCulture))%"></div>
+        </div>
+        <div class="time-duration">@FormatTime(_duration)</div>
     </div>
 
-    <div class="time-display">
-        <span>@FormatTime(_currentTime)</span>
-        <span>/</span>
-        <span>@FormatTime(_duration)</span>
-    </div>
-
-    <button class="volume-btn" @onclick="ToggleMute" title="@(_isMuted || _volume == 0 ? "Unmute" : "Mute")">
-        <span>@(_isMuted || _volume == 0 ? "🔇" : _volume < 0.5 ? "🔉" : "🔊")</span>
-    </button>
-    <div class="volume-slider">
-        <input type="range" min="0" max="1" step="0.01" value="@_volume" @oninput="HandleVolumeChange" />
+    <div class="volume-controls">
+        <button class="volume-btn" @onclick="ToggleMute" title="@(_isMuted || _volume == 0 ? "Unmute" : "Mute")">
+            <svg viewBox="0 0 24 24" width="20" height="20">
+                @if (_isMuted || _volume == 0)
+                {
+                    <path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                }
+                else if (_volume < 0.5)
+                {
+                    <path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm10.5 3c0-1.33-1.12-2-2.5-2v4c1.38 0 2.5-.67 2.5-2z"/>
+                }
+                else
+                {
+                    <path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm10.5 3c0-1.33-1.12-2-2.5-2v4c1.38 0 2.5-.67 2.5-2zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                }
+            </svg>
+        </button>
+        <div class="volume-slider">
+            <input type="range" min="0" max="1" step="0.01" value="@_volume" @oninput="HandleVolumeChange" />
+        </div>
     </div>
 
     <audio @ref="_audioElement"
@@ -46,10 +68,11 @@
     .custom-audio-player {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
+        gap: 1rem;
         padding: 0.5rem 0;
         width: 100%;
     }
+
     .play-pause-btn {
         display: inline-flex;
         align-items: center;
@@ -60,21 +83,43 @@
         background: linear-gradient(135deg, var(--accent), var(--accent-2));
         border: none;
         color: #0d0b12;
-        font-size: 1.2rem;
         cursor: pointer;
         transition: transform 0.15s, box-shadow 0.15s;
         box-shadow: 0 2px 8px rgba(247, 79, 111, 0.25);
         flex-shrink: 0;
     }
+
+    .play-pause-btn svg {
+        width: 1.4rem;
+        height: 1.4rem;
+    }
+
     .play-pause-btn:hover:not(:disabled) {
         transform: scale(1.05);
         box-shadow: 0 4px 12px rgba(247, 79, 111, 0.4);
     }
+
     .play-pause-btn:disabled {
         opacity: 0.5;
         cursor: not-allowed;
         box-shadow: none;
     }
+
+    .player-main {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .time-current, .time-duration {
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+        flex-shrink: 0;
+    }
+
     .progress-container {
         position: relative;
         flex: 1;
@@ -85,18 +130,21 @@
         overflow: visible;
         min-width: 80px;
     }
+
     .progress-buffered {
         position: absolute;
         height: 100%;
         background: rgba(255, 255, 255, 0.2);
         border-radius: 1rem;
     }
+
     .progress-fill {
         position: absolute;
         height: 100%;
         background: linear-gradient(90deg, var(--accent), var(--accent-2));
         border-radius: 1rem;
     }
+
     .progress-thumb {
         position: absolute;
         top: 50%;
@@ -110,35 +158,42 @@
         transition: opacity 0.15s;
         pointer-events: none;
     }
+
     .progress-container:hover .progress-thumb {
         opacity: 1;
     }
-    .time-display {
+
+    .volume-controls {
         display: flex;
         align-items: center;
-        gap: 0.25rem;
-        font-size: 0.8rem;
-        color: var(--muted);
-        min-width: 5.5rem;
+        gap: 0.5rem;
         flex-shrink: 0;
     }
+
     .volume-btn {
         background: none;
         border: none;
         color: var(--muted);
-        font-size: 1.1rem;
         cursor: pointer;
         padding: 0.25rem;
         transition: color 0.15s;
-        flex-shrink: 0;
+        display: flex;
+        align-items: center;
     }
+
+    .volume-btn svg {
+        width: 1.3rem;
+        height: 1.3rem;
+    }
+
     .volume-btn:hover {
         color: #fff;
     }
+
     .volume-slider {
         width: 80px;
-        flex-shrink: 0;
     }
+
     .volume-slider input[type="range"] {
         width: 100%;
         height: 0.3rem;
@@ -147,6 +202,7 @@
         border-radius: 1rem;
         outline: none;
     }
+
     .volume-slider input[type="range"]::-webkit-slider-thumb {
         -webkit-appearance: none;
         width: 0.8rem;
@@ -156,6 +212,7 @@
         cursor: pointer;
         box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
     }
+
     .volume-slider input[type="range"]::-moz-range-thumb {
         width: 0.8rem;
         height: 0.8rem;
@@ -165,10 +222,10 @@
         box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
         border: none;
     }
+
     @@media (max-width: 640px) {
-        .time-display {
-            min-width: 4.5rem;
-            font-size: 0.7rem;
+        .player-main {
+            gap: 0.5rem;
         }
         .volume-slider {
             width: 60px;
@@ -261,28 +318,45 @@
     private async void OnTimeUpdate()
     {
         if (_module == null) return;
-        var info = await _module.InvokeAsync<TimeInfo>("getTimeInfo", _audioElement);
-        _currentTime = info.CurrentTime;
-        _duration = info.Duration;
-        _currentPercent = _duration > 0 ? (_currentTime / _duration) * 100 : 0;
-        StateHasChanged();
+        try
+        {
+            var info = await _module.InvokeAsync<TimeInfo>("getTimeInfo", _audioElement);
+            _currentTime = info.CurrentTime;
+            _duration = info.Duration;
+            _currentPercent = _duration > 0 ? (_currentTime / _duration) * 100 : 0;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+            // Ignore transient deserialization errors during metadata load
+        }
     }
 
     private async void OnProgress()
     {
         if (_module == null) return;
-        _bufferedPercent = await _module.InvokeAsync<double>("getBufferedPercent", _audioElement);
-        StateHasChanged();
+        try
+        {
+            _bufferedPercent = await _module.InvokeAsync<double>("getBufferedPercent", _audioElement);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch { }
     }
 
     private async void OnEndedHandler()
     {
-        await OnEnded.InvokeAsync();
+        try { await OnEnded.InvokeAsync(); } catch { }
     }
 
     private async void OnErrorHandler()
     {
-        await OnError.InvokeAsync();
+        try { await OnError.InvokeAsync(); } catch { }
+    }
+
+    public class TimeInfo
+    {
+        public double CurrentTime { get; set; }
+        public double Duration { get; set; }
     }
 
     [JSInvokable]
@@ -318,11 +392,5 @@
     {
         public double Left { get; set; }
         public double Width { get; set; }
-    }
-
-    public class TimeInfo
-    {
-        public double CurrentTime { get; set; }
-        public double Duration { get; set; }
     }
 }
