@@ -34,7 +34,6 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
             if (_queue.Count > 0)
             {
                 // Keep current track at position, shuffle the rest
-                var currentTrack = CurrentTrack;
                 var remaining = _queue.Skip(_queueIndex + 1).ToList();
                 ShuffleList(remaining);
                 _queue = _queue.Take(_queueIndex + 1).Concat(remaining).ToList();
@@ -55,12 +54,13 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
         var trackList = tracks.Where(t => t.HasSource).ToList();
         if (trackList.Count == 0) return;
 
+        EnrichTracksWithAlbumContext(trackList, albumContext);
+
         _queue = trackList;
         _currentAlbum = albumContext;
         _queueIndex = Math.Clamp(startIndex, 0, _queue.Count - 1);
         if (_shuffleEnabled)
         {
-            // Shuffle everything after the start index
             var remaining = _queue.Skip(_queueIndex + 1).ToList();
             ShuffleList(remaining);
             _queue = _queue.Take(_queueIndex + 1).Concat(remaining).ToList();
@@ -74,16 +74,7 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
         var trackList = tracks.Where(t => t.HasSource).ToList();
         if (trackList.Count == 0) return;
 
-        // Fill missing display properties from album context
-        if (albumContext != null)
-        {
-            foreach (var t in trackList)
-            {
-                t.Artist ??= albumContext.DisplayArtist ?? albumContext.ArtistName;
-                t.AlbumTitle ??= albumContext.DisplayTitle;
-                t.CoverImageUrl ??= albumContext.CoverImageUrl;
-            }
-        }
+        EnrichTracksWithAlbumContext(trackList, albumContext);
 
         _queue.AddRange(trackList);
         if (_shuffleEnabled && _queueIndex >= 0)
@@ -97,6 +88,20 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
         {
             _queueIndex = 0;
             await SelectCurrentAsync(_queue[0]);
+        }
+    }
+
+    private static void EnrichTracksWithAlbumContext(IEnumerable<MusicTrack> tracks, MusicAlbum? albumContext)
+    {
+        if (albumContext == null) return;
+        foreach (var t in tracks)
+        {
+            if (string.IsNullOrEmpty(t.Artist))
+                t.Artist = albumContext.DisplayArtist ?? albumContext.ArtistName ?? "Unknown artist";
+            if (string.IsNullOrEmpty(t.AlbumTitle))
+                t.AlbumTitle = albumContext.DisplayTitle;
+            if (string.IsNullOrEmpty(t.CoverImageUrl))
+                t.CoverImageUrl = albumContext.CoverImageUrl;
         }
     }
 
@@ -129,13 +134,14 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
         if (index < 0 || index >= _queue.Count) return;
         if (index == _queueIndex)
         {
-            // Removing current track: stop playback, play next if available
             _queue.RemoveAt(index);
             if (_queue.Count == 0)
             {
                 _queueIndex = -1;
                 CurrentTrack = null;
                 CurrentSourceUrl = null;
+                CurrentAlbum = null;
+                _currentAlbum = null;
             }
             else
             {
@@ -175,7 +181,6 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
         _queue.RemoveAt(fromIndex);
         _queue.Insert(toIndex, item);
 
-        // Adjust current index
         if (fromIndex == _queueIndex) _queueIndex = toIndex;
         else if (fromIndex < _queueIndex && toIndex >= _queueIndex) _queueIndex--;
         else if (fromIndex > _queueIndex && toIndex <= _queueIndex) _queueIndex++;
@@ -204,7 +209,6 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
             Index = pt.Index,
             Title = pt.Title,
             StreamUrl = pt.RemoteUrl ?? string.Empty,
-            // For display purposes
             AlbumId = pt.AlbumId,
             AlbumTitle = pt.AlbumTitle,
             Artist = pt.Artist,
@@ -282,7 +286,7 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
         if (HasNext)
             await PlayNextAsync();
         else
-            ClearQueue(); // End of queue
+            ClearQueue();
     }
 
     public Task ReportPlaybackErrorAsync()
@@ -296,7 +300,7 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
     private void NotifyStateChanged() => StateChanged?.Invoke();
     private void NotifyQueueChanged() => QueueChanged?.Invoke();
 
-    // File system access methods remain unchanged...
+    // File system access methods
     public async Task<bool> RequestFolderAccessAsync() => await jsRuntime.InvokeAsync<bool>("musicCache.requestFolderAccess");
     public async Task<bool> IsFolderAccessGrantedAsync() => await jsRuntime.InvokeAsync<bool>("musicCache.isFolderAccessGranted");
     public async Task<bool> IsFileSystemAccessSupportedAsync()

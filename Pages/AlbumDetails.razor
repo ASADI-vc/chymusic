@@ -144,7 +144,7 @@ else
     private async Task AddTrackToQueueAsync(MusicTrack track)
     {
         if (track.HasSource)
-            await Playback.AddToQueueAsync(new[] { track });
+            await Playback.AddToQueueAsync(new[] { track }, _album);
     }
 
     private static string CoverUrl(string? coverImageUrl) =>
