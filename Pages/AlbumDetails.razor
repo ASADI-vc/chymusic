@@ -40,7 +40,8 @@ else
                 }
             </div>
             <div class="hero-actions">
-                <button class="pill-button" @onclick="() => Playback.PlayAlbumAsync(_album)">Play album</button>
+                <button class="pill-button" @onclick="() => Playback.PlayAlbumAsync(_album)">Play</button>
+                <button class="ghost-button" @onclick="() => AddAlbumToQueueAsync()">Add to Queue</button>
                 @if (!string.IsNullOrWhiteSpace(_album.ZipDownloadUrl))
                 {
                     <a class="ghost-button link-button" href="@_album.ZipDownloadUrl" target="_blank" rel="noreferrer">Album ZIP</a>
@@ -71,6 +72,7 @@ else
                             <span class="track-meta">@(track.HasSource ? "Play" : "Missing source")</span>
                             @if (track.HasSource)
                             {
+                                <button class="ghost-button" @onclick="() => AddTrackToQueueAsync(track)">➕ Queue</button>
                                 <PlaylistSelector Track="@(new PlaylistSelector.TrackIdentifier { AlbumId = _album.Id, TrackId = track.Id })" />
                             }
                         </div>
@@ -127,6 +129,22 @@ else
     protected override async Task OnParametersSetAsync()
     {
         _album = await CatalogService.GetAlbumAsync(Id);
+    }
+
+    private async Task AddAlbumToQueueAsync()
+    {
+        if (_album != null)
+        {
+            var tracks = _album.Tracks.Where(t => t.HasSource).ToList();
+            if (tracks.Count > 0)
+                await Playback.AddToQueueAsync(tracks, _album);
+        }
+    }
+
+    private async Task AddTrackToQueueAsync(MusicTrack track)
+    {
+        if (track.HasSource)
+            await Playback.AddToQueueAsync(new[] { track });
     }
 
     private static string CoverUrl(string? coverImageUrl) =>

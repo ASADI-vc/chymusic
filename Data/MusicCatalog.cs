@@ -78,6 +78,10 @@ public sealed class MusicTrack
     public string PreferredUrl => DownloadUrl320 ?? StreamUrl ?? DownloadUrl128 ?? string.Empty;
 
     public bool HasSource => !string.IsNullOrWhiteSpace(PreferredUrl);
+    public string AlbumTitle { get; set; } = string.Empty;
+    public string Artist { get; set; } = string.Empty;
+    public string? CoverImageUrl { get; set; }
+    public int? AlbumId { get; set; }
 }
 
 public sealed class MusicTrackSummary

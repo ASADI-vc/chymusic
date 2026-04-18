@@ -27,6 +27,7 @@ else
             </div>
             <div class="hero-actions">
                 <button class="pill-button" @onclick="PlayAll">Play All</button>
+                <button class="ghost-button" @onclick="AddAllToQueue">Add to Queue</button>
                 <button class="ghost-button" @onclick="EditDetails">Edit Details</button>
                 <button class="ghost-button" @onclick="DeletePlaylist">Delete</button>
             </div>
@@ -52,6 +53,7 @@ else
                     </div>
                     <div style="display: flex; gap: 0.5rem;">
                         <button class="ghost-button" @onclick="() => PlayTrack(index)">▶</button>
+                        <button class="ghost-button" @onclick="() => AddTrackToQueue(track)">➕ Queue</button>
                         <button class="ghost-button" @onclick="() => RemoveTrack(track.TrackId)">✕</button>
                     </div>
                 </div>
@@ -81,10 +83,47 @@ else
             await Playback.PlayPlaylistAsync(_playlist);
     }
 
+    private async Task AddAllToQueue()
+    {
+        if (_playlist != null)
+        {
+            var tracks = _playlist.Tracks.Select(t => new MusicTrack
+            {
+                Id = t.TrackId,
+                Index = t.Index,
+                Title = t.Title,
+                AlbumTitle = t.AlbumTitle,
+                Artist = t.Artist,
+                CoverImageUrl = t.CoverImageUrl,
+                StreamUrl = t.RemoteUrl ?? string.Empty
+            }).Where(t => t.HasSource).ToList();
+            if (tracks.Count > 0)
+                await Playback.AddToQueueAsync(tracks);
+        }
+    }
+
     private async Task PlayTrack(int index)
     {
         if (_playlist != null)
             await Playback.PlayPlaylistAsync(_playlist, index);
+    }
+
+    private async Task AddTrackToQueue(PlaylistTrack track)
+    {
+        if (!string.IsNullOrEmpty(track.RemoteUrl))
+        {
+            var musicTrack = new MusicTrack
+            {
+                Id = track.TrackId,
+                Index = track.Index,
+                Title = track.Title,
+                AlbumTitle = track.AlbumTitle,
+                Artist = track.Artist,
+                CoverImageUrl = track.CoverImageUrl,
+                StreamUrl = track.RemoteUrl
+            };
+            await Playback.AddToQueueAsync(new[] { musicTrack });
+        }
     }
 
     private async Task RemoveTrack(int trackId)
@@ -119,7 +158,6 @@ else
 
     private void AddTracks()
     {
-        // Open a modal or navigate to search page with "add to playlist" mode
         Navigation.NavigateTo($"/search?addToPlaylist={Id}");
     }
 }

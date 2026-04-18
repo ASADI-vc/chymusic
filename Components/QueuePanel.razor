@@ -1,0 +1,199 @@
+@implements IDisposable
+@inject PlaybackService Playback
+
+<div class="queue-panel @(_isExpanded ? "is-expanded" : "")">
+    <div class="queue-header" @onclick="ToggleExpanded">
+        <div class="queue-header-left">
+            <span class="eyebrow">Queue</span>
+            <span class="queue-count">@Playback.Queue.Count tracks</span>
+        </div>
+        <div class="queue-header-right">
+            <button class="ghost-button" @onclick="() => Playback.ShuffleEnabled = !Playback.ShuffleEnabled" @onclick:stopPropagation="true">
+                <span class="shuffle-indicator @(Playback.ShuffleEnabled ? "active" : "")">🔀</span>
+            </button>
+            <button class="ghost-button" @onclick="() => Playback.ClearQueue()" @onclick:stopPropagation="true">Clear</button>
+            <span class="expand-icon">@(_isExpanded ? "▼" : "▲")</span>
+        </div>
+    </div>
+
+    @if (_isExpanded && Playback.Queue.Count > 0)
+    {
+    <div class="queue-list">
+        @for (int i = 0; i < Playback.Queue.Count; i++)
+        {
+        var track = Playback.Queue[i];
+        var index = i;
+        var isCurrent = i == Playback.QueueIndex;
+        <div class="queue-item @(isCurrent ? "current" : "")">
+            <div class="queue-item-info" @onclick="() => Playback.SkipToQueueItemAsync(index)">
+                <span class="queue-index">@(i + 1)</span>
+                <img src="@CoverUrl(track.CoverImageUrl)" alt="" class="queue-thumb" />
+                <div class="queue-track">
+                    <strong>@track.Title</strong>
+                    <span>@track.Artist - @track.AlbumTitle</span>
+                </div>
+            </div>
+            <button class="ghost-button" @onclick="() => Playback.RemoveFromQueue(index)">✕</button>
+        </div>
+        }
+    </div>
+    }
+</div>
+
+<style>
+    .queue-panel {
+        position: fixed;
+        bottom: 6rem;
+        right: 1rem;
+        width: 360px;
+        max-height: 400px;
+        background: var(--panel-strong);
+        border: 1px solid var(--line);
+        border-radius: 1.2rem;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(18px);
+        z-index: 30;
+        overflow: hidden;
+        transition: max-height 0.2s ease;
+    }
+
+    .queue-panel:not(.is-expanded) {
+        max-height: 3.5rem;
+    }
+
+    .queue-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.8rem 1rem;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .queue-header-left {
+        display: flex;
+        align-items: baseline;
+        gap: 0.75rem;
+    }
+
+    .queue-count {
+        font-size: 0.85rem;
+        color: var(--muted);
+    }
+
+    .queue-header-right {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .shuffle-indicator {
+        opacity: 0.5;
+        transition: opacity 0.15s;
+    }
+
+    .shuffle-indicator.active {
+        opacity: 1;
+        color: var(--accent-2);
+    }
+
+    .expand-icon {
+        font-size: 0.8rem;
+        margin-left: 0.25rem;
+    }
+
+    .queue-list {
+        max-height: 340px;
+        overflow-y: auto;
+        padding: 0 0.5rem 0.5rem;
+    }
+
+    .queue-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem;
+        border-radius: 0.8rem;
+        transition: background 0.15s;
+    }
+
+    .queue-item:hover {
+        background: rgba(255, 255, 255, 0.04);
+    }
+
+    .queue-item.current {
+        background: rgba(247, 79, 111, 0.15);
+    }
+
+    .queue-item-info {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex: 1;
+        cursor: pointer;
+        min-width: 0;
+    }
+
+    .queue-index {
+        width: 1.8rem;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.9rem;
+    }
+
+    .queue-thumb {
+        width: 2.4rem;
+        height: 2.4rem;
+        border-radius: 0.5rem;
+        object-fit: cover;
+    }
+
+    .queue-track {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .queue-track strong,
+    .queue-track span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .queue-track span {
+        font-size: 0.8rem;
+        color: var(--muted);
+    }
+
+    @@media (max-width: 960px) {
+        .queue-panel {
+            left: 1rem;
+            width: auto;
+        }
+    }
+</style>
+
+@code {
+private bool _isExpanded = true;
+
+protected override void OnInitialized()
+{
+Playback.QueueChanged += OnQueueChanged;
+Playback.StateChanged += OnStateChanged;
+}
+
+private void OnQueueChanged() => InvokeAsync(StateHasChanged);
+private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+private void ToggleExpanded() => _isExpanded = !_isExpanded;
+
+private static string CoverUrl(string? coverImageUrl) =>
+string.IsNullOrWhiteSpace(coverImageUrl) ? "/favicon.png" : coverImageUrl;
+
+public void Dispose()
+{
+Playback.QueueChanged -= OnQueueChanged;
+Playback.StateChanged -= OnStateChanged;
+}
+}

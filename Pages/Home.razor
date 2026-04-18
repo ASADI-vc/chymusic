@@ -102,7 +102,8 @@ else
                                 <span>@album.Genre</span>
                             </div>
                             <div class="card-actions">
-                                <button class="pill-button" @onclick="() => PlayAlbumAsync(album.AlbumId)">Play album</button>
+                                <button class="pill-button" @onclick="() => PlayAlbumAsync(album.AlbumId)">Play</button>
+                                <button class="ghost-button" @onclick="() => AddAlbumToQueueAsync(album.AlbumId)">Add to Queue</button>
                                 <button class="ghost-button" @onclick="() => OpenAlbum(album.AlbumId)">Details</button>
                                 <PlaylistSelector Album="@(new PlaylistSelector.AlbumIdentifier { AlbumId = album.AlbumId })" />
                             </div>
@@ -130,6 +131,7 @@ else
                             </div>
                             <div style="display: flex; gap: 0.5rem; align-items: center;">
                                 <span class="track-meta">@match.Genre</span>
+                                <button class="ghost-button" @onclick="() => AddTrackToQueueAsync(match.AlbumId, match.TrackId)">➕ Queue</button>
                                 <PlaylistSelector Track="@(new PlaylistSelector.TrackIdentifier { AlbumId = match.AlbumId, TrackId = match.TrackId })" />
                             </div>
                         </div>
@@ -161,7 +163,8 @@ else
                                 <span>@album.Genre</span>
                             </div>
                             <div class="card-actions">
-                                <button class="pill-button" @onclick="() => PlayAlbumAsync(album.Id)">Play album</button>
+                                <button class="pill-button" @onclick="() => PlayAlbumAsync(album.Id)">Play</button>
+                                <button class="ghost-button" @onclick="() => AddAlbumToQueueAsync(album.Id)">Add to Queue</button>
                                 <button class="ghost-button" @onclick="() => OpenAlbum(album.Id)">Details</button>
                                 <PlaylistSelector Album="@(new PlaylistSelector.AlbumIdentifier { AlbumId = album.Id })" />
                             </div>
@@ -188,6 +191,7 @@ else
                             </div>
                             <div style="display: flex; gap: 0.5rem; align-items: center;">
                                 <span class="track-meta">@track.Genre</span>
+                                <button class="ghost-button" @onclick="() => AddTrackToQueueAsync(track.AlbumId, track.TrackId)">➕ Queue</button>
                                 <PlaylistSelector Track="@(new PlaylistSelector.TrackIdentifier { AlbumId = track.AlbumId, TrackId = track.TrackId })" />
                             </div>
                         </div>
@@ -296,10 +300,31 @@ else
         if (album is not null) await Playback.PlayAlbumAsync(album);
     }
 
+    private async Task AddAlbumToQueueAsync(int albumId)
+    {
+        var album = await CatalogService.GetAlbumAsync(albumId);
+        if (album != null)
+        {
+            var tracks = album.Tracks.Where(t => t.HasSource).ToList();
+            if (tracks.Count > 0)
+                await Playback.AddToQueueAsync(tracks, album);
+        }
+    }
+
     private async Task PlayTrackAsync(int albumId, int trackId)
     {
         var album = await CatalogService.GetAlbumAsync(albumId);
         if (album is not null) await Playback.PlayTrackAsync(album, trackId);
+    }
+
+    private async Task AddTrackToQueueAsync(int albumId, int trackId)
+    {
+        var album = await CatalogService.GetAlbumAsync(albumId);
+        var track = album?.Tracks.FirstOrDefault(t => t.Id == trackId);
+        if (track != null && track.HasSource)
+        {
+            await Playback.AddToQueueAsync(new[] { track },album);
+        }
     }
 
     private void OpenAlbum(int albumId) => Navigation.NavigateTo($"/album/{albumId}");
