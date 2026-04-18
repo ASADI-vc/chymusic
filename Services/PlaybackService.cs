@@ -45,6 +45,7 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
                 ShuffleList(remaining);
                 _queue = _queue.Take(_queueIndex + 1).Concat(remaining).ToList();
             }
+
             NotifyStateChanged();
             NotifyQueueChanged();
         }
@@ -83,6 +84,7 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
             ShuffleList(remaining);
             _queue = _queue.Take(_queueIndex + 1).Concat(remaining).ToList();
         }
+
         await SelectCurrentAsync(_queue[_queueIndex]);
         NotifyQueueChanged();
     }
@@ -101,6 +103,7 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
             ShuffleList(newItems);
             _queue = _queue.Take(_queue.Count - trackList.Count).Concat(newItems).ToList();
         }
+
         NotifyQueueChanged();
         if (CurrentTrack == null && _queue.Count > 0)
         {
@@ -115,7 +118,7 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
         foreach (var t in tracks)
         {
             if (string.IsNullOrEmpty(t.Artist))
-                t.Artist = albumContext.DisplayArtist ?? albumContext.ArtistName ?? "Unknown artist";
+                t.Artist = albumContext.DisplayArtist;
             if (string.IsNullOrEmpty(t.AlbumTitle))
                 t.AlbumTitle = albumContext.DisplayTitle;
             if (string.IsNullOrEmpty(t.CoverImageUrl))
@@ -133,8 +136,10 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
                 await SelectCurrentAsync(_queue[_queueIndex]);
                 NotifyQueueChanged();
             }
+
             return;
         }
+
         _queueIndex++;
         await SelectCurrentAsync(_queue[_queueIndex]);
         NotifyQueueChanged();
@@ -185,6 +190,7 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
         {
             _queue.RemoveAt(index);
         }
+
         NotifyQueueChanged();
         NotifyStateChanged();
     }
@@ -246,7 +252,7 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
         {
             Id = 0,
             TitleFa = playlist.Name,
-            ArtistName = "Various Artists",
+            ArtistName = new List<string> { "Various Artists" },
             CoverImageUrl = playlist.CoverImageUrl,
             Tracks = tracks
         };
@@ -289,7 +295,9 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
             var cached = await jsRuntime.InvokeAsync<bool>("musicCache.prefetchTrack", trackId, remoteUrl);
             IsCached = cached;
         }
-        catch { }
+        catch
+        {
+        }
         finally
         {
             IsCaching = false;
@@ -312,7 +320,6 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
     {
         if (_repeatMode == RepeatMode.Track && CurrentTrack != null)
         {
-            // Replay the same track
             await SelectCurrentAsync(CurrentTrack);
             return;
         }
@@ -336,7 +343,8 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
     public Task ReportPlaybackErrorAsync()
     {
         PlaybackBlocked = true;
-        PlaybackError = "The music host blocked in-page playback for this track. Try opening the direct file in a new tab or use a source that allows embedded streaming.";
+        PlaybackError =
+            "The music host blocked in-page playback for this track. Try opening the direct file in a new tab or use a source that allows embedded streaming.";
         NotifyStateChanged();
         return Task.CompletedTask;
     }
@@ -344,22 +352,68 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
     private void NotifyStateChanged() => StateChanged?.Invoke();
     private void NotifyQueueChanged() => QueueChanged?.Invoke();
 
-    // File system access methods (unchanged)
-    public async Task<bool> RequestFolderAccessAsync() => await jsRuntime.InvokeAsync<bool>("musicCache.requestFolderAccess");
-    public async Task<bool> IsFolderAccessGrantedAsync() => await jsRuntime.InvokeAsync<bool>("musicCache.isFolderAccessGranted");
+    // File system access methods
+    public async Task<bool> RequestFolderAccessAsync() =>
+        await jsRuntime.InvokeAsync<bool>("musicCache.requestFolderAccess");
+
+    public async Task<bool> IsFolderAccessGrantedAsync() =>
+        await jsRuntime.InvokeAsync<bool>("musicCache.isFolderAccessGranted");
+
     public async Task<bool> IsFileSystemAccessSupportedAsync()
     {
-        try { return await jsRuntime.InvokeAsync<bool>("musicCache.isFileSystemAccessSupported"); }
-        catch { return false; }
+        try
+        {
+            return await jsRuntime.InvokeAsync<bool>("musicCache.isFileSystemAccessSupported");
+        }
+        catch
+        {
+            return false;
+        }
     }
+
     public async Task<bool> ReconnectFolderAsync()
     {
-        try { return await jsRuntime.InvokeAsync<bool>("musicCache.reconnectFolder"); }
-        catch { return false; }
+        try
+        {
+            return await jsRuntime.InvokeAsync<bool>("musicCache.reconnectFolder");
+        }
+        catch
+        {
+            return false;
+        }
     }
+
     public async Task<bool> HasStoredHandleAsync()
     {
-        try { return await jsRuntime.InvokeAsync<bool>("musicCache.hasStoredHandle"); }
-        catch { return false; }
+        try
+        {
+            return await jsRuntime.InvokeAsync<bool>("musicCache.hasStoredHandle");
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public Task PlaySingleTrackAsync(MusicTrack track, MusicAlbum? albumContext = null)
+    {
+        if (!track.HasSource) return Task.CompletedTask;
+
+        var enrichedTrack = new MusicTrack
+        {
+            Id = track.Id,
+            Index = 0,
+            Title = track.Title,
+            StreamUrl = track.PreferredUrl,
+            AlbumId = track.AlbumId,
+            AlbumTitle = track.AlbumTitle,
+            Artist = track.Artist,
+            CoverImageUrl = track.CoverImageUrl,
+            DownloadUrl128 = track.DownloadUrl128,
+            DownloadUrl320 = track.DownloadUrl320,
+        };
+        EnrichTracksWithAlbumContext(new[] { enrichedTrack }, albumContext);
+
+        return PlayNowAsync(new[] { enrichedTrack }, 0, albumContext);
     }
 }

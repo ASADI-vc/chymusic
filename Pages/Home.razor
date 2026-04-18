@@ -5,7 +5,7 @@
 @inject PlaybackService Playback
 @inject NavigationManager Navigation
 
-<PageTitle>MusicWeb Player</PageTitle>
+<PageTitle>CHY MUSIC</PageTitle>
 
 @if (_isLoading)
 {
@@ -19,7 +19,7 @@ else
     <section class="hero-card">
         <div>
             <p class="eyebrow">Standalone music player</p>
-            <h1>Search albums fast, stream instantly, and keep played tracks cached when the host allows it.</h1>
+            <h1>CHY MUSIC</h1>
             <p class="hero-copy">
                 Built from your scraped catalog with @(_overview?.AlbumCount ?? 0) albums
                 and @(_overview?.TrackCount ?? 0) tracks.
@@ -67,81 +67,12 @@ else
     </section>
 
     <section class="search-shell">
-        <input class="search-box"
-               placeholder="Search albums, artists, genres, tracks, tags..."
-               value="@_query"
-               @oninput="HandleSearchChanged"/>
-        <p class="search-hint">Search runs in a background worker with debounce, so typing stays smooth even with 10k+ albums.</p>
-        @if (_isSearching)
-        {
-            <p class="search-status">Searching...</p>
-        }
+        <a class="search-link" href="/search">
+            <span class="search-icon">🔍</span>
+            <span>Search albums, artists, genres, tracks...</span>
+        </a>
     </section>
-
-    @if (!string.IsNullOrWhiteSpace(_query))
-    {
-        <section class="content-grid search-results-grid">
-            <div class="panel-card wide-panel">
-                <div class="section-heading">
-                    <div>
-                        <p class="eyebrow">Search</p>
-                        <h2>Albums</h2>
-                    </div>
-                    <span>@_searchResults.Albums.Count result(s)</span>
-                </div>
-                <div class="album-grid">
-                    @foreach (var album in _searchResults.Albums)
-                    {
-                        <article class="album-card">
-                            <button class="cover-button" @onclick="() => OpenAlbum(album.AlbumId)">
-                                <img src="@CoverUrl(album.CoverImageUrl)" alt="@album.Title"/>
-                            </button>
-                            <div>
-                                <strong>@album.Title</strong>
-                                <p>@album.Artist</p>
-                                <span>@album.Genre</span>
-                            </div>
-                            <div class="card-actions">
-                                <button class="pill-button" @onclick="() => PlayAlbumAsync(album.AlbumId)">Play</button>
-                                <button class="ghost-button" @onclick="() => AddAlbumToQueueAsync(album.AlbumId)">Add to Queue</button>
-                                <button class="ghost-button" @onclick="() => OpenAlbum(album.AlbumId)">Details</button>
-                                <PlaylistSelector Album="@(new PlaylistSelector.AlbumIdentifier { AlbumId = album.AlbumId })" />
-                            </div>
-                        </article>
-                    }
-                </div>
-            </div>
-
-            <div class="panel-card wide-panel">
-                <div class="section-heading">
-                    <div>
-                        <p class="eyebrow">Search</p>
-                        <h2>Tracks</h2>
-                    </div>
-                    <span>@_searchResults.Tracks.Count result(s)</span>
-                </div>
-                <div class="track-list">
-                    @foreach (var match in _searchResults.Tracks)
-                    {
-                        <div class="track-row">
-                            <span class="track-index" @onclick="() => PlayTrackAsync(match.AlbumId, match.TrackId)">@match.Index</span>
-                            <div class="track-copy" @onclick="() => PlayTrackAsync(match.AlbumId, match.TrackId)">
-                                <strong>@match.Title</strong>
-                                <span>@match.Artist - @match.AlbumTitle</span>
-                            </div>
-                            <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                <span class="track-meta">@match.Genre</span>
-                                <button class="ghost-button" @onclick="() => AddTrackToQueueAsync(match.AlbumId, match.TrackId)">➕ Queue</button>
-                                <PlaylistSelector Track="@(new PlaylistSelector.TrackIdentifier { AlbumId = match.AlbumId, TrackId = match.TrackId })" />
-                            </div>
-                        </div>
-                    }
-                </div>
-            </div>
-        </section>
-    }
-    else
-    {
+    
         <section class="content-grid">
             <div class="panel-card">
                 <div class="section-heading">
@@ -160,7 +91,7 @@ else
                             <div>
                                 <strong>@album.DisplayTitle</strong>
                                 <p>@album.DisplayArtist</p>
-                                <span>@album.Genre</span>
+                                <span>@string.Join(", ", album.Genre)</span>
                             </div>
                             <div class="card-actions">
                                 <button class="pill-button" @onclick="() => PlayAlbumAsync(album.Id)">Play</button>
@@ -199,7 +130,6 @@ else
                 </div>
             </div>
         </section>
-    }
 }
 
 @code {

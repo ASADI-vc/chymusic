@@ -15,16 +15,16 @@
 else
 {
     <section class="album-hero">
-        <img src="@CoverUrl(_album.CoverImageUrl)" alt="@_album.DisplayTitle" />
+        <img src="@CoverUrl(_album.CoverImageUrl)" alt="@_album.DisplayTitle"/>
         <div>
             <p class="eyebrow">Album details</p>
             <h1>@_album.DisplayTitle</h1>
             <p class="album-subtitle">@_album.DisplayArtist</p>
             <p class="hero-copy">@(_album.DescriptionText ?? _album.TitleFa)</p>
             <div class="meta-chips">
-                @if (!string.IsNullOrWhiteSpace(_album.Genre))
+                @foreach (var genre in _album.Genre)
                 {
-                    <span>@_album.Genre</span>
+                    <span>@genre</span>
                 }
                 @if (!string.IsNullOrWhiteSpace(_album.Format))
                 {
@@ -44,9 +44,10 @@ else
                 <button class="ghost-button" @onclick="() => AddAlbumToQueueAsync()">Add to Queue</button>
                 @if (!string.IsNullOrWhiteSpace(_album.ZipDownloadUrl))
                 {
-                    <a class="ghost-button link-button" href="@_album.ZipDownloadUrl" target="_blank" rel="noreferrer">Album ZIP</a>
+                    <a class="ghost-button link-button" href="@_album.ZipDownloadUrl" target="_blank" rel="noreferrer">Album
+                        ZIP</a>
                 }
-                <PlaylistSelector Album="@(new PlaylistSelector.AlbumIdentifier { AlbumId = _album.Id })" />
+                <PlaylistSelector Album="@(new PlaylistSelector.AlbumIdentifier { AlbumId = _album.Id })"/>
             </div>
         </div>
     </section>
@@ -72,6 +73,7 @@ else
                             <span class="track-meta">@(track.HasSource ? "Play" : "Missing source")</span>
                             @if (track.HasSource)
                             {
+                                <button class="ghost-button" @onclick="() => PlaySingleTrackAsync(track)" title="Play this track only">▶</button>
                                 <button class="ghost-button" @onclick="() => AddTrackToQueueAsync(track)">➕ Queue</button>
                                 <PlaylistSelector Track="@(new PlaylistSelector.TrackIdentifier { AlbumId = _album.Id, TrackId = track.Id })" />
                             }
@@ -89,11 +91,26 @@ else
                 </div>
             </div>
             <dl class="details-list">
-                <div><dt>Likes</dt><dd>@_album.LikeCount</dd></div>
-                <div><dt>Comments</dt><dd>@_album.CommentCount</dd></div>
-                <div><dt>Dislikes</dt><dd>@_album.DislikeCount</dd></div>
-                <div><dt>Release</dt><dd>@(_album.Released ?? "-")</dd></div>
-                <div><dt>ZIP size</dt><dd>@(_album.ZipSizeMb is null ? "-" : $"{_album.ZipSizeMb:0.#} MB")</dd></div>
+                <div>
+                    <dt>Likes</dt>
+                    <dd>@_album.LikeCount</dd>
+                </div>
+                <div>
+                    <dt>Comments</dt>
+                    <dd>@_album.CommentCount</dd>
+                </div>
+                <div>
+                    <dt>Dislikes</dt>
+                    <dd>@_album.DislikeCount</dd>
+                </div>
+                <div>
+                    <dt>Release</dt>
+                    <dd>@(_album.Released ?? "-")</dd>
+                </div>
+                <div>
+                    <dt>ZIP size</dt>
+                    <dd>@(_album.ZipSizeMb is null ? "-" : $"{_album.ZipSizeMb:0.#} MB")</dd>
+                </div>
             </dl>
 
             @if (_album.Categories.Count > 0)
@@ -146,7 +163,14 @@ else
         if (track.HasSource)
             await Playback.AddToQueueAsync(new[] { track }, _album);
     }
+    
+    private async Task PlaySingleTrackAsync(MusicTrack track)
+    {
+        if (track.HasSource)
+            await Playback.PlaySingleTrackAsync(track, _album);
+    }
 
     private static string CoverUrl(string? coverImageUrl) =>
         string.IsNullOrWhiteSpace(coverImageUrl) ? "/favicon.png" : coverImageUrl;
+
 }

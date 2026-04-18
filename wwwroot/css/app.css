@@ -529,3 +529,25 @@ p {
         display: none;
     }
 }
+
+.search-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 1.1rem 1.2rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    background: rgba(8, 11, 18, 0.72);
+    color: var(--text);
+    text-decoration: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.search-link:hover {
+    border-color: rgba(255, 177, 75, 0.55);
+    box-shadow: 0 0 0 0.2rem rgba(255, 177, 75, 0.12);
+}
+.search-icon {
+    font-size: 1.2rem;
+    opacity: 0.7;
+}

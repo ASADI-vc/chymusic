@@ -71,7 +71,7 @@ public class PlaylistService
             Index = track.Index,
             Title = track.Title,
             AlbumTitle = album.DisplayTitle,
-            Artist = album.ArtistName ?? "",
+            Artist = album.DisplayArtist,
             CoverImageUrl = album.CoverImageUrl,
             RemoteUrl = track.PreferredUrl,
             AddedAt = DateTime.UtcNow

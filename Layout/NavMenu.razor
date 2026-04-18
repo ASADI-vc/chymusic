@@ -1,19 +1,20 @@
 <div class="nav-shell">
     <a class="brand-lockup" href="">
-        <span class="brand-mark">MW</span>
+        <img class="brand-mark" src="/icon/favicon.png" alt="icon"/>
         <div>
-            <strong>MusicWeb</strong>
+            <strong>CHY MUSIC</strong>
             <span>Streaming from your scraped catalog</span>
         </div>
     </a>
 
     <nav class="nav-links">
-        <NavLink class="nav-pill" href="" Match="NavLinkMatch.All">Discover</NavLink>
-        <NavLink class="nav-pill" href="/playlists">Playlists</NavLink>
+        <NavLink class="nav-pill" href="" Match="NavLinkMatch.All" ActiveClass="nav-pill-active">Discover</NavLink>
+        <NavLink class="nav-pill" href="/genres" ActiveClass="nav-pill-active">Genres</NavLink>
+        <NavLink class="nav-pill" href="/artists" ActiveClass="nav-pill-active">Artists</NavLink>
+        <NavLink class="nav-pill" href="/playlists" ActiveClass="nav-pill-active">Playlists</NavLink>
     </nav>
 
-    <div class="sidebar-copy">
-        <p class="eyebrow">Playback</p>
-        <p>Tracks start immediately, then a background fetch stores them in the browser cache for future plays.</p>
+    <div class="sidebar-queue-section">
+        <QueuePanel />
     </div>
 </div>

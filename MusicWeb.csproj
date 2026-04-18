@@ -21,11 +21,4 @@
         <Compile Remove="Models/**/*.cs" />
     </ItemGroup>
 
-    <ItemGroup>
-      <_ContentIncludedByDefault Remove="Pages\test\Counter.razor" />
-      <_ContentIncludedByDefault Remove="Pages\test\Home.razor" />
-      <_ContentIncludedByDefault Remove="Pages\test\NotFound.razor" />
-      <_ContentIncludedByDefault Remove="Pages\test\Weather.razor" />
-    </ItemGroup>
-
 </Project>

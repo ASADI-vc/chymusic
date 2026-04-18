@@ -14,28 +14,18 @@ public sealed class MusicCatalogOverview
 public class MusicAlbumSummary
 {
     public int Id { get; set; }
-
     public string TitleFa { get; set; } = string.Empty;
-
     public string? AlbumName { get; set; }
-
-    public string? ArtistName { get; set; }
-
+    public List<string> ArtistName { get; set; } = new();      // was string?
     public string? CoverImageUrl { get; set; }
-
     public string? PublishedAt { get; set; }
-
     public int TracksCount { get; set; }
-
-    public string? Genre { get; set; }
-
+    public List<string> Genre { get; set; } = new();           // was string?
     public int LikeCount { get; set; }
-
     public int CommentCount { get; set; }
 
     public string DisplayTitle => string.IsNullOrWhiteSpace(AlbumName) ? TitleFa : AlbumName!;
-
-    public string DisplayArtist => string.IsNullOrWhiteSpace(ArtistName) ? "Unknown artist" : ArtistName!;
+    public string DisplayArtist => ArtistName.Count > 0 ? string.Join(", ", ArtistName) : "Unknown artist";
 }
 
 public sealed class MusicAlbum : MusicAlbumSummary

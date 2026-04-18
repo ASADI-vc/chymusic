@@ -52,7 +52,8 @@ else
                         <span>@track.Artist - @track.AlbumTitle</span>
                     </div>
                     <div style="display: flex; gap: 0.5rem;">
-                        <button class="ghost-button" @onclick="() => PlayTrack(index)">▶</button>
+                        <button class="ghost-button" @onclick="() => PlayTrack(index)">▶ Album</button>
+                        @* <button class="ghost-button" @onclick="() => PlaySingleTrack(track)">▶</button> *@
                         <button class="ghost-button" @onclick="() => AddTrackToQueue(track)">➕ Queue</button>
                         <button class="ghost-button" @onclick="() => RemoveTrack(track.TrackId)">✕</button>
                     </div>

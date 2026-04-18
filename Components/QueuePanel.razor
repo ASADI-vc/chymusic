@@ -5,16 +5,22 @@
     <div class="queue-header" @onclick="ToggleExpanded">
         <div class="queue-header-left">
             <span class="eyebrow">Queue</span>
-            <span class="queue-count">@Playback.Queue.Count tracks</span>
+            <span class="queue-count">@Playback.Queue.Count </span>
         </div>
         <div class="queue-header-right">
-            <button class="ghost-button" @onclick="() => CycleRepeatMode()" @onclick:stopPropagation="true" title="@GetRepeatTitle()">
-                <span class="repeat-indicator @(Playback.RepeatMode != RepeatMode.Off ? "active" : "")">@GetRepeatIcon()</span>
+            <button class="icon-button" @onclick="() => CycleRepeatMode()" @onclick:stopPropagation="true"
+                    title="@GetRepeatTitle()">
+                <span
+                    class="repeat-indicator @(Playback.RepeatMode != RepeatMode.Off ? "active" : "")">@GetRepeatIcon()</span>
             </button>
-            <button class="ghost-button" @onclick="() => Playback.ShuffleEnabled = !Playback.ShuffleEnabled" @onclick:stopPropagation="true" title="Shuffle">
+            <button class="icon-button" @onclick="() => Playback.ShuffleEnabled = !Playback.ShuffleEnabled"
+                    @onclick:stopPropagation="true" title="Shuffle">
                 <span class="shuffle-indicator @(Playback.ShuffleEnabled ? "active" : "")">🔀</span>
             </button>
-            <button class="ghost-button" @onclick="() => Playback.ClearQueue()" @onclick:stopPropagation="true" title="Clear queue">Clear</button>
+            <button class="text-button" @onclick="() => Playback.ClearQueue()" @onclick:stopPropagation="true"
+                    title="Clear queue">
+                Clear
+            </button>
             <span class="expand-icon">@(_isExpanded ? "▼" : "▲")</span>
         </div>
     </div>
@@ -28,7 +34,9 @@
                 var index = i;
                 var isCurrent = i == Playback.QueueIndex;
                 <div class="queue-item @(isCurrent ? "current" : "")">
-                    <div class="queue-item-info" @onclick="() => Playback.SkipToQueueItemAsync(index)">
+                    <div class="queue-item-info" 
+                         @onclick="() => Playback.SkipToQueueItemAsync(index)"
+                         title="@($"{track.Title}\n{track.Artist} • {track.AlbumTitle}")">
                         <span class="queue-index">@(i + 1)</span>
                         <img src="@CoverUrl(track.CoverImageUrl)" alt="" class="queue-thumb" />
                         <div class="queue-track">
@@ -36,7 +44,10 @@
                             <span>@track.Artist - @track.AlbumTitle</span>
                         </div>
                     </div>
-                    <button class="ghost-button" @onclick="() => Playback.RemoveFromQueue(index)">✕</button>
+                    <button class="remove-button" @onclick="() => Playback.RemoveFromQueue(index)"
+                            title="Remove from queue">
+                        <span>✕</span>
+                    </button>
                 </div>
             }
         </div>
@@ -45,32 +56,35 @@
 
 <style>
     .queue-panel {
-        position: fixed;
-        bottom: 6rem;
-        right: 1rem;
-        width: 360px;
-        max-height: 400px;
-        background: var(--panel-strong);
-        border: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        background: transparent;
+        border: none;
         border-radius: 1.2rem;
-        box-shadow: var(--shadow);
-        backdrop-filter: blur(18px);
-        z-index: 30;
         overflow: hidden;
-        transition: max-height 0.2s ease;
+        transition: max-height 0.3s ease;
+        max-height: 500px;
     }
 
     .queue-panel:not(.is-expanded) {
-        max-height: 3.5rem;
+        max-height: 3.8rem;
     }
 
     .queue-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 0.8rem 1rem;
+        padding: 0.75rem 0.5rem;
         cursor: pointer;
         user-select: none;
+        border-bottom: 1px solid transparent;
+        transition: border-color 0.2s;
+        flex-shrink: 0;
+    }
+
+    .queue-panel.is-expanded .queue-header {
+        border-bottom-color: rgba(255, 255, 255, 0.08);
     }
 
     .queue-header-left {
@@ -80,45 +94,106 @@
     }
 
     .queue-count {
-        font-size: 0.85rem;
-        color: var(--muted);
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.5);
+        letter-spacing: 0.02em;
     }
 
     .queue-header-right {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.4rem;
+    }
+
+    .icon-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 0.8rem;
+        background: transparent;
+        border: none;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 1.1rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .icon-button:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: white;
+        transform: scale(1.05);
+    }
+
+    .text-button {
+        padding: 0.4rem 0.8rem;
+        border-radius: 2rem;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.8rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .text-button:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: white;
+        border-color: rgba(255, 177, 75, 0.3);
     }
 
     .shuffle-indicator, .repeat-indicator {
         opacity: 0.5;
-        transition: opacity 0.15s;
+        transition: all 0.2s ease;
         font-size: 1.1rem;
     }
 
     .shuffle-indicator.active, .repeat-indicator.active {
         opacity: 1;
-        color: var(--accent-2);
+        color: #ffb14b;
+        text-shadow: 0 0 8px rgba(255, 177, 75, 0.4);
     }
 
     .expand-icon {
-        font-size: 0.8rem;
-        margin-left: 0.25rem;
+        font-size: 0.75rem;
+        margin-left: 0.5rem;
+        opacity: 0.6;
+        transition: transform 0.2s;
+    }
+
+    .queue-panel.is-expanded .expand-icon {
+        transform: rotate(180deg);
     }
 
     .queue-list {
-        max-height: 340px;
+        flex: 1;
         overflow-y: auto;
-        padding: 0 0.5rem 0.5rem;
+        padding: 0.3rem 0.2rem 0.5rem 0;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    }
+
+    .queue-list::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .queue-list::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
     }
 
     .queue-item {
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        padding: 0.5rem;
+        padding: 0.5rem 0.5rem;
+        margin-bottom: 0.2rem;
         border-radius: 0.8rem;
-        transition: background 0.15s;
+        background: transparent;
+        transition: all 0.2s ease;
     }
 
     .queue-item:hover {
@@ -126,30 +201,44 @@
     }
 
     .queue-item.current {
-        background: rgba(247, 79, 111, 0.15);
+        background: linear-gradient(135deg, rgba(247, 79, 111, 0.12), rgba(255, 177, 75, 0.06));
+        border-left: 3px solid #f74f6f;
+        padding-left: calc(0.5rem - 3px);
     }
 
     .queue-item-info {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
+        gap: 0.6rem;
         flex: 1;
         cursor: pointer;
         min-width: 0;
     }
 
     .queue-index {
-        width: 1.8rem;
+        width: 1.6rem;
         text-align: center;
-        color: var(--muted);
-        font-size: 0.9rem;
+        color: rgba(255, 255, 255, 0.45);
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .queue-item.current .queue-index {
+        color: #f74f6f;
+        font-weight: 600;
     }
 
     .queue-thumb {
-        width: 2.4rem;
-        height: 2.4rem;
+        width: 2.2rem;
+        height: 2.2rem;
         border-radius: 0.5rem;
         object-fit: cover;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        transition: transform 0.2s;
+    }
+
+    .queue-item:hover .queue-thumb {
+        transform: scale(1.05);
     }
 
     .queue-track {
@@ -157,24 +246,48 @@
         flex: 1;
     }
 
-    .queue-track strong,
+    .queue-track strong {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.95);
+    }
+
     .queue-track span {
         display: block;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.55);
     }
 
-    .queue-track span {
-        font-size: 0.8rem;
-        color: var(--muted);
+    .remove-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.8rem;
+        height: 1.8rem;
+        border-radius: 0.5rem;
+        background: transparent;
+        border: none;
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        opacity: 0;
     }
 
-    @@media (max-width: 960px) {
-        .queue-panel {
-            left: 1rem;
-            width: auto;
-        }
+    .queue-item:hover .remove-button {
+        opacity: 1;
+    }
+
+    .remove-button:hover {
+        background: rgba(247, 79, 111, 0.2);
+        color: #f74f6f;
     }
 </style>
 
@@ -226,4 +339,5 @@
         Playback.QueueChanged -= OnQueueChanged;
         Playback.StateChanged -= OnStateChanged;
     }
+
 }

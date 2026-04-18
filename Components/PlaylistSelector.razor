@@ -59,11 +59,21 @@
         border: 1px solid var(--line);
         border-radius: 1.2rem;
         box-shadow: var(--shadow);
-        z-index: 100;
+        z-index: 1000; /* Increased from 100 */
         backdrop-filter: blur(18px);
         padding: 0.5rem 0;
     }
 
+    /* Ensure the dropdown appears above everything */
+    .track-row, .album-card {
+        overflow: visible !important;
+    }
+
+    .track-list, .album-grid, .panel-card {
+        overflow: visible !important;
+    }
+
+    /* ... rest of existing styles unchanged ... */
     .dropdown-header {
         display: flex;
         align-items: center;
