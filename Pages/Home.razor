@@ -135,12 +135,8 @@ else
 @code {
     private MusicCatalogOverview? _overview;
     private bool _isLoading = true;
-    private bool _isSearching;
-    private string? _query;
-    private int _searchVersion;
     private IReadOnlyList<MusicAlbumSummary> _featuredAlbums = [];
     private IReadOnlyList<MusicTrackSummary> _freshTracks = [];
-    private MusicSearchResult _searchResults = new();
     private bool _isFolderAccessGranted;
     private bool _isFileSystemAccessSupported;
     private bool _hasStoredHandle;
@@ -196,32 +192,6 @@ else
             }
         }
         StateHasChanged();
-    }
-
-    private async Task HandleSearchChanged(ChangeEventArgs args)
-    {
-        _query = args.Value?.ToString();
-        var localVersion = ++_searchVersion;
-
-        if (string.IsNullOrWhiteSpace(_query))
-        {
-            _isSearching = false;
-            _searchResults = new MusicSearchResult();
-            return;
-        }
-
-        _isSearching = true;
-        await Task.Delay(220);
-
-        if (localVersion != _searchVersion) return;
-
-        _searchResults = await SearchService.SearchAsync(_query);
-
-        if (localVersion == _searchVersion)
-        {
-            _isSearching = false;
-            await InvokeAsync(StateHasChanged);
-        }
     }
 
     private async Task PlayAlbumAsync(int albumId)

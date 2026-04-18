@@ -14,7 +14,7 @@
     else
     {
         <div class="player-now">
-            <img src="@CoverUrl(Playback.CurrentAlbum.CoverImageUrl)" alt="@Playback.CurrentAlbum.DisplayTitle" />
+            <img src="@CoverUrl(Playback.CurrentAlbum.CoverImageUrl)" alt="@Playback.CurrentAlbum.DisplayTitle"/>
             <div>
                 <p class="eyebrow">Now playing</p>
                 <strong>@Playback.CurrentTrack.Title</strong>
@@ -25,42 +25,146 @@
                 }
             </div>
         </div>
-        <div class="player-controls">
-            <button class="ghost-button" @onclick="Playback.PlayPreviousAsync" disabled="@(!Playback.HasPrevious)">Prev</button>
-            <button class="ghost-button" @onclick="Playback.PlayNextAsync" disabled="@(!Playback.HasNext)">Next</button>
-            <span class="cache-state @(Playback.IsCached ? "is-ready" : string.Empty)">
-                @(Playback.IsCached ? "Cached" : Playback.IsCaching ? "Caching" : Playback.IsPreparing ? "Preparing" : "Streaming")
-            </span>
-            @if (!string.IsNullOrWhiteSpace(Playback.CurrentTrack.PreferredUrl))
-            {
-                <a class="ghost-button link-button" href="@Playback.CurrentTrack.PreferredUrl" target="_blank" rel="noreferrer">Open file</a>
-            }
-        </div>
-        <div class="player-audio">
-            <audio @key="Playback.PlaybackVersion"
-                   controls
-                   autoplay
-                   preload="metadata"
-                   crossorigin="anonymous"
-                   referrerpolicy="no-referrer"
-                   src="@Playback.CurrentSourceUrl"
-                   @onended="HandleEnded"
-                   @onerror="HandleError">
-            </audio>
+
+        <div class="player-middle">
+            <div class="player-controls">
+                <button class="icon-btn" @onclick="() => Playback.ShuffleEnabled = !Playback.ShuffleEnabled"
+                        title="Shuffle">
+                    <span class="@(Playback.ShuffleEnabled ? "active" : "")">🔀</span>
+                </button>
+                <button class="icon-btn" @onclick="Playback.PlayPreviousAsync" disabled="@(!Playback.HasPrevious)"
+                        title="Previous">⏮
+                </button>
+                <button class="icon-btn" @onclick="Playback.PlayNextAsync" disabled="@(!Playback.HasNext)" title="Next">
+                    ⏭
+                </button>
+                <button class="icon-btn" @onclick="CycleRepeatMode" title="@GetRepeatTitle()">
+                    <span class="@(Playback.RepeatMode != RepeatMode.Off ? "active" : "")">@GetRepeatIcon()</span>
+                </button>
+                <span class="cache-icon"
+                      title="@(Playback.IsCached ? "Cached" : Playback.IsCaching ? "Caching" : "Streaming")">
+                    @if (Playback.IsCached)
+                    {
+                        <span>💾</span>
+                    }
+                    else if (Playback.IsCaching)
+                    {
+                        <span>⬇️</span>
+                    }
+                    else
+                    {
+                        <span>🌐</span>
+                    }
+                </span>
+                @if (!string.IsNullOrWhiteSpace(Playback.CurrentTrack.PreferredUrl))
+                {
+                    <a class="icon-btn" href="@Playback.CurrentTrack.PreferredUrl" target="_blank" rel="noreferrer"
+                       title="Open file">🔗</a>
+                }
+            </div>
+            <div class="player-audio">
+                <AudioPlayer Source="@Playback.CurrentSourceUrl"
+                             OnEnded="HandleEnded"
+                             OnError="HandleError"/>
+            </div>
         </div>
     }
 </div>
 
+<style>
+    .player-middle {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .player-controls {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    .icon-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.2rem;
+        height: 2.2rem;
+        border-radius: 0.8rem;
+        background: transparent;
+        border: none;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 1.2rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        text-decoration: none;
+    }
+
+    .icon-btn:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.08);
+        color: white;
+    }
+
+    .icon-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    .icon-btn .active {
+        color: #ffb14b;
+    }
+
+    .cache-icon {
+        font-size: 1.2rem;
+        opacity: 0.7;
+    }
+
+    .cache-icon.cached {
+        opacity: 1;
+        color: #7ed585;
+    }
+</style>
 
 @code {
+
     protected override void OnInitialized()
     {
         Playback.StateChanged += HandlePlaybackChanged;
     }
 
-    private Task HandleEnded() => Playback.HandleTrackEndedAsync();
-    private Task HandleError() => Playback.ReportPlaybackErrorAsync();
     private void HandlePlaybackChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task HandleEnded() => await Playback.HandleTrackEndedAsync();
+    private Task HandleError() => Playback.ReportPlaybackErrorAsync();
+
+    private void CycleRepeatMode()
+    {
+        Playback.RepeatMode = Playback.RepeatMode switch
+        {
+            RepeatMode.Off => RepeatMode.Queue,
+            RepeatMode.Queue => RepeatMode.Track,
+            RepeatMode.Track => RepeatMode.Off,
+            _ => RepeatMode.Off
+        };
+    }
+
+    private string GetRepeatIcon() => Playback.RepeatMode switch
+    {
+        RepeatMode.Track => "🔂",
+        RepeatMode.Queue => "🔁",
+        _ => "🔁"
+    };
+
+    private string GetRepeatTitle() => Playback.RepeatMode switch
+    {
+        RepeatMode.Off => "Repeat: Off",
+        RepeatMode.Queue => "Repeat: Queue",
+        RepeatMode.Track => "Repeat: Track",
+        _ => "Repeat"
+    };
 
     private static string CoverUrl(string? coverImageUrl) =>
         string.IsNullOrWhiteSpace(coverImageUrl) ? "/favicon.png" : coverImageUrl;
@@ -69,4 +173,5 @@
     {
         Playback.StateChanged -= HandlePlaybackChanged;
     }
+
 }

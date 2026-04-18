@@ -8,17 +8,7 @@
             <span class="queue-count">@Playback.Queue.Count </span>
         </div>
         <div class="queue-header-right">
-            <button class="icon-button" @onclick="() => CycleRepeatMode()" @onclick:stopPropagation="true"
-                    title="@GetRepeatTitle()">
-                <span
-                    class="repeat-indicator @(Playback.RepeatMode != RepeatMode.Off ? "active" : "")">@GetRepeatIcon()</span>
-            </button>
-            <button class="icon-button" @onclick="() => Playback.ShuffleEnabled = !Playback.ShuffleEnabled"
-                    @onclick:stopPropagation="true" title="Shuffle">
-                <span class="shuffle-indicator @(Playback.ShuffleEnabled ? "active" : "")">🔀</span>
-            </button>
-            <button class="text-button" @onclick="() => Playback.ClearQueue()" @onclick:stopPropagation="true"
-                    title="Clear queue">
+            <button class="text-button" @onclick="() => Playback.ClearQueue()" @onclick:stopPropagation="true" title="Clear queue">
                 Clear
             </button>
             <span class="expand-icon">@(_isExpanded ? "▼" : "▲")</span>

@@ -1,0 +1,328 @@
+@using System.Globalization
+@implements IDisposable
+@inject IJSRuntime JS
+
+<div class="custom-audio-player">
+    <button class="play-pause-btn" @onclick="TogglePlayPause" disabled="@(!_hasAudio)" title="@(_isPlaying ? "Pause" : "Play")">
+        <span>@(_isPlaying ? "⏸" : "▶")</span>
+    </button>
+
+    <div class="progress-container" @ref="_progressContainer" @onclick="HandleProgressClick">
+        <div class="progress-buffered" style="width: @(_bufferedPercent.ToString("0.0", CultureInfo.InvariantCulture))%"></div>
+        <div class="progress-fill" style="width: @(_currentPercent.ToString("0.0", CultureInfo.InvariantCulture))%"></div>
+        <div class="progress-thumb" style="left: @(_currentPercent.ToString("0.0", CultureInfo.InvariantCulture))%"></div>
+    </div>
+
+    <div class="time-display">
+        <span>@FormatTime(_currentTime)</span>
+        <span>/</span>
+        <span>@FormatTime(_duration)</span>
+    </div>
+
+    <button class="volume-btn" @onclick="ToggleMute" title="@(_isMuted || _volume == 0 ? "Unmute" : "Mute")">
+        <span>@(_isMuted || _volume == 0 ? "🔇" : _volume < 0.5 ? "🔉" : "🔊")</span>
+    </button>
+    <div class="volume-slider">
+        <input type="range" min="0" max="1" step="0.01" value="@_volume" @oninput="HandleVolumeChange" />
+    </div>
+
+    <audio @ref="_audioElement"
+           style="display:none"
+           preload="auto"
+           autoplay
+           crossorigin="anonymous"
+           referrerpolicy="no-referrer"
+           @oncanplay="OnCanPlay"
+           @ontimeupdate="OnTimeUpdate"
+           @onprogress="OnProgress"
+           @onplay="() => _isPlaying = true"
+           @onpause="() => _isPlaying = false"
+           @onended="OnEndedHandler"
+           @onerror="OnErrorHandler">
+    </audio>
+</div>
+
+<style>
+    .custom-audio-player {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 0;
+        width: 100%;
+    }
+    .play-pause-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        border: none;
+        color: #0d0b12;
+        font-size: 1.2rem;
+        cursor: pointer;
+        transition: transform 0.15s, box-shadow 0.15s;
+        box-shadow: 0 2px 8px rgba(247, 79, 111, 0.25);
+        flex-shrink: 0;
+    }
+    .play-pause-btn:hover:not(:disabled) {
+        transform: scale(1.05);
+        box-shadow: 0 4px 12px rgba(247, 79, 111, 0.4);
+    }
+    .play-pause-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+    .progress-container {
+        position: relative;
+        flex: 1;
+        height: 0.4rem;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        cursor: pointer;
+        overflow: visible;
+        min-width: 80px;
+    }
+    .progress-buffered {
+        position: absolute;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 1rem;
+    }
+    .progress-fill {
+        position: absolute;
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), var(--accent-2));
+        border-radius: 1rem;
+    }
+    .progress-thumb {
+        position: absolute;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 0.8rem;
+        height: 0.8rem;
+        background: #fff;
+        border-radius: 50%;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+        opacity: 0;
+        transition: opacity 0.15s;
+        pointer-events: none;
+    }
+    .progress-container:hover .progress-thumb {
+        opacity: 1;
+    }
+    .time-display {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.8rem;
+        color: var(--muted);
+        min-width: 5.5rem;
+        flex-shrink: 0;
+    }
+    .volume-btn {
+        background: none;
+        border: none;
+        color: var(--muted);
+        font-size: 1.1rem;
+        cursor: pointer;
+        padding: 0.25rem;
+        transition: color 0.15s;
+        flex-shrink: 0;
+    }
+    .volume-btn:hover {
+        color: #fff;
+    }
+    .volume-slider {
+        width: 80px;
+        flex-shrink: 0;
+    }
+    .volume-slider input[type="range"] {
+        width: 100%;
+        height: 0.3rem;
+        -webkit-appearance: none;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        outline: none;
+    }
+    .volume-slider input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 0.8rem;
+        height: 0.8rem;
+        background: #fff;
+        border-radius: 50%;
+        cursor: pointer;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    }
+    .volume-slider input[type="range"]::-moz-range-thumb {
+        width: 0.8rem;
+        height: 0.8rem;
+        background: #fff;
+        border-radius: 50%;
+        cursor: pointer;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+        border: none;
+    }
+    @@media (max-width: 640px) {
+        .time-display {
+            min-width: 4.5rem;
+            font-size: 0.7rem;
+        }
+        .volume-slider {
+            width: 60px;
+        }
+    }
+</style>
+
+@code {
+    private ElementReference _audioElement;
+    private ElementReference _progressContainer;
+    private IJSObjectReference? _module;
+    private bool _isPlaying;
+    private bool _hasAudio;
+    private double _duration;
+    private double _currentTime;
+    private double _bufferedPercent;
+    private double _currentPercent;
+    private double _volume = 1.0;
+    private bool _isMuted;
+
+    [Parameter] public string? Source { get; set; }
+    [Parameter] public EventCallback OnEnded { get; set; }
+    [Parameter] public EventCallback OnError { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/audioPlayer.js");
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _module != null)
+        {
+            await _module.InvokeVoidAsync("initialize", _audioElement, DotNetObjectReference.Create(this));
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrEmpty(Source) && _module != null)
+        {
+            _hasAudio = true;
+            await _module.InvokeVoidAsync("setSource", _audioElement, Source);
+        }
+        else
+        {
+            _hasAudio = false;
+        }
+    }
+
+    private async Task TogglePlayPause()
+    {
+        if (_module == null) return;
+        if (_isPlaying)
+            await _module.InvokeVoidAsync("pause", _audioElement);
+        else
+            await _module.InvokeVoidAsync("play", _audioElement);
+    }
+
+    private async Task HandleProgressClick(MouseEventArgs e)
+    {
+        if (_module == null || _duration <= 0) return;
+        var rect = await _module.InvokeAsync<BoundingRect>("getBoundingClientRect", _progressContainer);
+        var percent = (e.ClientX - rect.Left) / rect.Width;
+        var seekTime = _duration * percent;
+        await _module.InvokeVoidAsync("seek", _audioElement, seekTime);
+    }
+
+    private async Task ToggleMute()
+    {
+        _isMuted = !_isMuted;
+        if (_module != null)
+            await _module.InvokeVoidAsync("setMuted", _audioElement, _isMuted);
+    }
+
+    private async Task HandleVolumeChange(ChangeEventArgs e)
+    {
+        _volume = Convert.ToDouble(e.Value);
+        if (_module != null)
+            await _module.InvokeVoidAsync("setVolume", _audioElement, _volume);
+        if (_volume > 0) _isMuted = false;
+    }
+
+    private void OnCanPlay()
+    {
+        _hasAudio = true;
+        StateHasChanged();
+    }
+
+    private async void OnTimeUpdate()
+    {
+        if (_module == null) return;
+        var info = await _module.InvokeAsync<TimeInfo>("getTimeInfo", _audioElement);
+        _currentTime = info.CurrentTime;
+        _duration = info.Duration;
+        _currentPercent = _duration > 0 ? (_currentTime / _duration) * 100 : 0;
+        StateHasChanged();
+    }
+
+    private async void OnProgress()
+    {
+        if (_module == null) return;
+        _bufferedPercent = await _module.InvokeAsync<double>("getBufferedPercent", _audioElement);
+        StateHasChanged();
+    }
+
+    private async void OnEndedHandler()
+    {
+        await OnEnded.InvokeAsync();
+    }
+
+    private async void OnErrorHandler()
+    {
+        await OnError.InvokeAsync();
+    }
+
+    [JSInvokable]
+    public void UpdateTime(double currentTime, double duration)
+    {
+        _currentTime = currentTime;
+        _duration = duration;
+        _currentPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+        InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public void UpdateBuffered(double buffered)
+    {
+        _bufferedPercent = buffered;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private static string FormatTime(double seconds)
+    {
+        if (double.IsNaN(seconds) || seconds < 0) return "0:00";
+        var mins = (int)(seconds / 60);
+        var secs = (int)(seconds % 60);
+        return $"{mins}:{secs:D2}";
+    }
+
+    public void Dispose()
+    {
+        _module?.DisposeAsync();
+    }
+
+    public class BoundingRect
+    {
+        public double Left { get; set; }
+        public double Width { get; set; }
+    }
+
+    public class TimeInfo
+    {
+        public double CurrentTime { get; set; }
+        public double Duration { get; set; }
+    }
+}
