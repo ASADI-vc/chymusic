@@ -3,13 +3,21 @@ using MusicWeb.Data;
 
 namespace MusicWeb.Services;
 
+public enum RepeatMode
+{
+    Off,
+    Queue,
+    Track
+}
+
 public sealed class PlaybackService(IJSRuntime jsRuntime)
 {
     private List<MusicTrack> _queue = [];
     private int _queueIndex = -1;
     private bool _shuffleEnabled;
+    private RepeatMode _repeatMode = RepeatMode.Off;
     private readonly Random _random = new();
-    private MusicAlbum? _currentAlbum; // Album context for display only
+    private MusicAlbum? _currentAlbum;
 
     public event Action? StateChanged;
     public event Action? QueueChanged;
@@ -33,13 +41,23 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
             _shuffleEnabled = value;
             if (_queue.Count > 0)
             {
-                // Keep current track at position, shuffle the rest
                 var remaining = _queue.Skip(_queueIndex + 1).ToList();
                 ShuffleList(remaining);
                 _queue = _queue.Take(_queueIndex + 1).Concat(remaining).ToList();
             }
             NotifyStateChanged();
             NotifyQueueChanged();
+        }
+    }
+
+    public RepeatMode RepeatMode
+    {
+        get => _repeatMode;
+        set
+        {
+            if (_repeatMode == value) return;
+            _repeatMode = value;
+            NotifyStateChanged();
         }
     }
 
@@ -107,7 +125,16 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
 
     public async Task PlayNextAsync()
     {
-        if (!HasNext) return;
+        if (!HasNext)
+        {
+            if (_repeatMode == RepeatMode.Queue && _queue.Count > 0)
+            {
+                _queueIndex = 0;
+                await SelectCurrentAsync(_queue[_queueIndex]);
+                NotifyQueueChanged();
+            }
+            return;
+        }
         _queueIndex++;
         await SelectCurrentAsync(_queue[_queueIndex]);
         NotifyQueueChanged();
@@ -283,10 +310,27 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
 
     public async Task HandleTrackEndedAsync()
     {
+        if (_repeatMode == RepeatMode.Track && CurrentTrack != null)
+        {
+            // Replay the same track
+            await SelectCurrentAsync(CurrentTrack);
+            return;
+        }
+
         if (HasNext)
+        {
             await PlayNextAsync();
+        }
+        else if (_repeatMode == RepeatMode.Queue && _queue.Count > 0)
+        {
+            _queueIndex = 0;
+            await SelectCurrentAsync(_queue[_queueIndex]);
+            NotifyQueueChanged();
+        }
         else
+        {
             ClearQueue();
+        }
     }
 
     public Task ReportPlaybackErrorAsync()
@@ -300,7 +344,7 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
     private void NotifyStateChanged() => StateChanged?.Invoke();
     private void NotifyQueueChanged() => QueueChanged?.Invoke();
 
-    // File system access methods
+    // File system access methods (unchanged)
     public async Task<bool> RequestFolderAccessAsync() => await jsRuntime.InvokeAsync<bool>("musicCache.requestFolderAccess");
     public async Task<bool> IsFolderAccessGrantedAsync() => await jsRuntime.InvokeAsync<bool>("musicCache.isFolderAccessGranted");
     public async Task<bool> IsFileSystemAccessSupportedAsync()

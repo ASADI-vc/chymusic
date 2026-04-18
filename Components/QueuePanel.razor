@@ -8,35 +8,38 @@
             <span class="queue-count">@Playback.Queue.Count tracks</span>
         </div>
         <div class="queue-header-right">
-            <button class="ghost-button" @onclick="() => Playback.ShuffleEnabled = !Playback.ShuffleEnabled" @onclick:stopPropagation="true">
+            <button class="ghost-button" @onclick="() => CycleRepeatMode()" @onclick:stopPropagation="true" title="@GetRepeatTitle()">
+                <span class="repeat-indicator @(Playback.RepeatMode != RepeatMode.Off ? "active" : "")">@GetRepeatIcon()</span>
+            </button>
+            <button class="ghost-button" @onclick="() => Playback.ShuffleEnabled = !Playback.ShuffleEnabled" @onclick:stopPropagation="true" title="Shuffle">
                 <span class="shuffle-indicator @(Playback.ShuffleEnabled ? "active" : "")">🔀</span>
             </button>
-            <button class="ghost-button" @onclick="() => Playback.ClearQueue()" @onclick:stopPropagation="true">Clear</button>
+            <button class="ghost-button" @onclick="() => Playback.ClearQueue()" @onclick:stopPropagation="true" title="Clear queue">Clear</button>
             <span class="expand-icon">@(_isExpanded ? "▼" : "▲")</span>
         </div>
     </div>
 
     @if (_isExpanded && Playback.Queue.Count > 0)
     {
-    <div class="queue-list">
-        @for (int i = 0; i < Playback.Queue.Count; i++)
-        {
-        var track = Playback.Queue[i];
-        var index = i;
-        var isCurrent = i == Playback.QueueIndex;
-        <div class="queue-item @(isCurrent ? "current" : "")">
-            <div class="queue-item-info" @onclick="() => Playback.SkipToQueueItemAsync(index)">
-                <span class="queue-index">@(i + 1)</span>
-                <img src="@CoverUrl(track.CoverImageUrl)" alt="" class="queue-thumb" />
-                <div class="queue-track">
-                    <strong>@track.Title</strong>
-                    <span>@track.Artist - @track.AlbumTitle</span>
+        <div class="queue-list">
+            @for (int i = 0; i < Playback.Queue.Count; i++)
+            {
+                var track = Playback.Queue[i];
+                var index = i;
+                var isCurrent = i == Playback.QueueIndex;
+                <div class="queue-item @(isCurrent ? "current" : "")">
+                    <div class="queue-item-info" @onclick="() => Playback.SkipToQueueItemAsync(index)">
+                        <span class="queue-index">@(i + 1)</span>
+                        <img src="@CoverUrl(track.CoverImageUrl)" alt="" class="queue-thumb" />
+                        <div class="queue-track">
+                            <strong>@track.Title</strong>
+                            <span>@track.Artist - @track.AlbumTitle</span>
+                        </div>
+                    </div>
+                    <button class="ghost-button" @onclick="() => Playback.RemoveFromQueue(index)">✕</button>
                 </div>
-            </div>
-            <button class="ghost-button" @onclick="() => Playback.RemoveFromQueue(index)">✕</button>
+            }
         </div>
-        }
-    </div>
     }
 </div>
 
@@ -87,12 +90,13 @@
         gap: 0.5rem;
     }
 
-    .shuffle-indicator {
+    .shuffle-indicator, .repeat-indicator {
         opacity: 0.5;
         transition: opacity 0.15s;
+        font-size: 1.1rem;
     }
 
-    .shuffle-indicator.active {
+    .shuffle-indicator.active, .repeat-indicator.active {
         opacity: 1;
         color: var(--accent-2);
     }
@@ -175,25 +179,51 @@
 </style>
 
 @code {
-private bool _isExpanded = true;
+    private bool _isExpanded = true;
 
-protected override void OnInitialized()
-{
-Playback.QueueChanged += OnQueueChanged;
-Playback.StateChanged += OnStateChanged;
-}
+    protected override void OnInitialized()
+    {
+        Playback.QueueChanged += OnQueueChanged;
+        Playback.StateChanged += OnStateChanged;
+    }
 
-private void OnQueueChanged() => InvokeAsync(StateHasChanged);
-private void OnStateChanged() => InvokeAsync(StateHasChanged);
+    private void OnQueueChanged() => InvokeAsync(StateHasChanged);
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
 
-private void ToggleExpanded() => _isExpanded = !_isExpanded;
+    private void ToggleExpanded() => _isExpanded = !_isExpanded;
 
-private static string CoverUrl(string? coverImageUrl) =>
-string.IsNullOrWhiteSpace(coverImageUrl) ? "/favicon.png" : coverImageUrl;
+    private void CycleRepeatMode()
+    {
+        Playback.RepeatMode = Playback.RepeatMode switch
+        {
+            RepeatMode.Off => RepeatMode.Queue,
+            RepeatMode.Queue => RepeatMode.Track,
+            RepeatMode.Track => RepeatMode.Off,
+            _ => RepeatMode.Off
+        };
+    }
 
-public void Dispose()
-{
-Playback.QueueChanged -= OnQueueChanged;
-Playback.StateChanged -= OnStateChanged;
-}
+    private string GetRepeatIcon() => Playback.RepeatMode switch
+    {
+        RepeatMode.Track => "🔂",
+        RepeatMode.Queue => "🔁",
+        _ => "🔁"
+    };
+
+    private string GetRepeatTitle() => Playback.RepeatMode switch
+    {
+        RepeatMode.Off => "Repeat: Off",
+        RepeatMode.Queue => "Repeat: Queue",
+        RepeatMode.Track => "Repeat: Track",
+        _ => "Repeat"
+    };
+
+    private static string CoverUrl(string? coverImageUrl) =>
+        string.IsNullOrWhiteSpace(coverImageUrl) ? "/favicon.png" : coverImageUrl;
+
+    public void Dispose()
+    {
+        Playback.QueueChanged -= OnQueueChanged;
+        Playback.StateChanged -= OnStateChanged;
+    }
 }
