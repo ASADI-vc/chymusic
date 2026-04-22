@@ -186,32 +186,47 @@ window.musicCache = (() => {
             } catch {}
         }
 
-        try {
-            const response = await fetch(remoteUrl, {
-                mode: "cors",
-                cache: "no-store",
-                credentials: "omit",
-                referrerPolicy: "no-referrer",
-            });
-            if (!response.ok) return false;
-            const blob = await response.blob();
-
-            await writeTrack({ id, remoteUrl, blob, cachedAt: new Date().toISOString() });
-
-            if (directoryHandle) {
-                try {
-                    const fileHandle = await getTrackFileHandle(id, remoteUrl, true);
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(blob);
-                    await writable.close();
-                } catch (fsError) {
-                    console.warn('File system write failed:', fsError);
+        // Retry up to 3 times for prefetch (background)
+        const maxRetries = 5;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                const response = await fetch(remoteUrl, {
+                    mode: "cors",
+                    cache: "no-store",
+                    credentials: "omit",
+                    referrerPolicy: "no-referrer",
+                });
+                if (!response.ok) {
+                    if (response.status === 403 && attempt < maxRetries) {
+                        await new Promise(r => setTimeout(r, 500 * attempt));
+                        continue;
+                    }
+                    return false;
                 }
+                const blob = await response.blob();
+
+                await writeTrack({ id, remoteUrl, blob, cachedAt: new Date().toISOString() });
+
+                if (directoryHandle) {
+                    try {
+                        const fileHandle = await getTrackFileHandle(id, remoteUrl, true);
+                        const writable = await fileHandle.createWritable();
+                        await writable.write(blob);
+                        await writable.close();
+                    } catch (fsError) {
+                        console.warn('File system write failed:', fsError);
+                    }
+                }
+                return true;
+            } catch (error) {
+                if (attempt === maxRetries) {
+                    console.warn('Prefetch failed after retries:', error);
+                    return false;
+                }
+                await new Promise(r => setTimeout(r, 500 * attempt));
             }
-            return true;
-        } catch {
-            return false;
         }
+        return false;
     }
 
     function revokeBlobUrl(id) {

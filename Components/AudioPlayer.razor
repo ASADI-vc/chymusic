@@ -348,9 +348,35 @@
         try { await OnEnded.InvokeAsync(); } catch { }
     }
 
+    private int _playbackErrorCount = 0;
+
     private async void OnErrorHandler()
     {
-        try { await OnError.InvokeAsync(); } catch { }
+        try
+        {
+            _playbackErrorCount++;
+            if (_playbackErrorCount <= 1 && _hasAudio && !string.IsNullOrEmpty(Source))
+            {
+                // Try to reload the source (might be a transient error)
+                await InvokeAsync(async () =>
+                {
+                    if (_module != null)
+                        await _module.InvokeVoidAsync("setSource", _audioElement, Source);
+                });
+            }
+            else
+            {
+                try { await OnError.InvokeAsync(); } catch { }
+            }
+        }
+        catch (Exception e)
+        {
+            try { await OnError.InvokeAsync(); }
+            catch
+            {
+                // ignored
+            }
+        }
     }
 
     public class TimeInfo

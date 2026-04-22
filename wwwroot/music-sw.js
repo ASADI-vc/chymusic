@@ -2,7 +2,6 @@ const APP_CACHE = "musicweb-app-v1";
 const DATA_CACHE = "musicweb-data-v1";
 const AUDIO_CACHE = "musicweb-audio-v1";
 
-// Core static files (precached at install)
 const APP_FILES = [
     "/",
     "/index.html",
@@ -10,7 +9,7 @@ const APP_FILES = [
     "/MusicWeb.styles.css",
     "/icon/favicon.png",
     "/manifest.json",
-    // Core data files for offline startup
+    "/_framework/blazor.webassembly.js",
     "/data/catalog-summary.json",
     "/data/search-index.json",
     "/data/featured.json",
@@ -34,39 +33,21 @@ self.addEventListener("fetch", event => {
     const requestUrl = new URL(event.request.url);
     const isAudioHost = requestUrl.hostname === "dl.musicsbaran.ir";
 
-    // 1. Audio requests – handled separately (CORS)
     if (isAudioHost) {
         if (event.request.method !== 'GET') return;
         event.respondWith(handleAudioRequest(event.request));
         return;
     }
 
-    // 2. Blazor framework and /js/ files – cache first, then network
-    if (requestUrl.pathname.startsWith("/_framework/") ||
-        requestUrl.pathname.startsWith("/js/")) {
-        event.respondWith(
-            caches.open(APP_CACHE).then(cache => {
-                return cache.match(event.request).then(cached => {
-                    const fetchPromise = fetch(event.request).then(networkResponse => {
-                        if (networkResponse.ok) {
-                            cache.put(event.request, networkResponse.clone());
-                        }
-                        return networkResponse;
-                    });
-                    return cached || fetchPromise;
-                });
-            })
-        );
+    if (requestUrl.pathname.startsWith("/js/")) {
         return;
     }
 
-    // 3. Data files (catalog JSON) – stale-while-revalidate
     if (requestUrl.pathname.startsWith("/data/")) {
         event.respondWith(handleDataRequest(event.request));
         return;
     }
 
-    // 4. App shell and other same-origin assets – cache first, fallback to network
     if (event.request.method === 'GET' && requestUrl.origin === location.origin) {
         event.respondWith(
             caches.open(APP_CACHE).then(cache => {
@@ -83,12 +64,10 @@ self.addEventListener("fetch", event => {
         );
         return;
     }
-
-    // 5. Everything else (e.g., external images) – network only
 });
 
 /**
- * Audio request handler – uses a separate cache, handles CORS
+ * Audio request handler with retry logic (up to 5 attempts) for 403 errors.
  */
 async function handleAudioRequest(request) {
     const cache = await caches.open(AUDIO_CACHE);
@@ -97,26 +76,48 @@ async function handleAudioRequest(request) {
         return cached;
     }
 
-    try {
-        const corsRequest = new Request(request.url, {
-            mode: 'cors',
-            credentials: 'omit',
-            referrerPolicy: 'no-referrer'
-        });
-        const response = await fetch(corsRequest);
-        if (response.ok) {
-            await cache.put(request, response.clone());
+    const maxRetries = 5;
+    let lastError;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const corsRequest = new Request(request.url, {
+                mode: 'cors',
+                credentials: 'omit',
+                referrerPolicy: 'no-referrer'
+            });
+            const response = await fetch(corsRequest);
+
+            if (response.ok) {
+                await cache.put(request, response.clone());
+                return response;
+            }
+
+            if (response.status === 403) {
+                console.warn(`Audio fetch attempt ${attempt} returned 403 for ${request.url}`);
+                lastError = new Error(`HTTP 403 Forbidden (attempt ${attempt})`);
+                if (attempt < maxRetries) {
+                    // Exponential backoff: 300ms, 600ms, 1.2s, 2.4s
+                    await new Promise(r => setTimeout(r, 300 * Math.pow(2, attempt - 1)));
+                }
+                continue;
+            }
+
+            // Other HTTP errors – do not retry
+            return response;
+        } catch (error) {
+            console.warn(`Audio fetch attempt ${attempt} failed:`, error);
+            lastError = error;
+            if (attempt < maxRetries) {
+                await new Promise(r => setTimeout(r, 300 * Math.pow(2, attempt - 1)));
+            }
         }
-        return response;
-    } catch (error) {
-        console.warn('CORS fetch failed, falling back to network:', request.url);
-        return Response.error();
     }
+
+    console.error(`All ${maxRetries} attempts failed for ${request.url}. Last error:`, lastError);
+    return Response.error();
 }
 
-/**
- * Data file handler – stale-while-revalidate
- */
 async function handleDataRequest(request) {
     const cache = await caches.open(DATA_CACHE);
     const cached = await cache.match(request);
