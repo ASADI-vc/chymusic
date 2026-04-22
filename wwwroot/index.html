@@ -2,6 +2,8 @@
 <html lang="en">
 
 <head>
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#f74f6f" />
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MusicWeb</title>
@@ -31,10 +33,10 @@
     <script src="js/musicCache.js"></script>
     <script src="js/playlistStorage.js"></script>
     <script src="js/audioHelper.js"></script>
-    <script src="js/audioPlayer.js"></script>
+    
     <script>
         if ("serviceWorker" in navigator) {
-            navigator.serviceWorker.register("music-sw.js");
+            navigator.serviceWorker.register("music-sw.js", { scope: "/" });
         }
     </script>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
