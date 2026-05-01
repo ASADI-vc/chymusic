@@ -1,0 +1,126 @@
+@page "/queue"
+@implements IDisposable
+@inject PlaybackService Playback
+
+<PageTitle>Queue - CHY MUSIC</PageTitle>
+
+<section class="hero-card">
+    <div>
+        <p class="eyebrow">Now Playing</p>
+        <h1>Queue</h1>
+        <p class="hero-copy">Manage your upcoming tracks</p>
+    </div>
+    <div class="hero-stats">
+        <div>
+            <span>Tracks in queue</span>
+            <strong>@Playback.Queue.Count</strong>
+        </div>
+    </div>
+</section>
+
+<section class="panel-card wide-panel">
+    <div class="section-heading">
+        <h2>Upcoming Tracks</h2>
+        <div class="queue-actions">
+            <button class="ghost-button" @onclick="() => Playback.ShuffleEnabled = !Playback.ShuffleEnabled" title="Shuffle">
+                <span class="@(Playback.ShuffleEnabled ? "active" : "")">🔀 Shuffle</span>
+            </button>
+            <button class="ghost-button" @onclick="CycleRepeatMode" title="@GetRepeatTitle()">
+                <span class="@(Playback.RepeatMode != RepeatMode.Off ? "active" : "")">@GetRepeatIcon() @GetRepeatTitle()</span>
+            </button>
+            <button class="ghost-button" @onclick="() => Playback.ClearQueue()">Clear All</button>
+        </div>
+    </div>
+
+    @if (Playback.Queue.Count == 0)
+    {
+        <p class="muted">No tracks in the queue. Add some music!</p>
+    }
+    else
+    {
+        <div class="track-list">
+            @for (int i = 0; i < Playback.Queue.Count; i++)
+            {
+                var track = Playback.Queue[i];
+                var index = i;
+                var isCurrent = i == Playback.QueueIndex;
+                <div class="track-row @(isCurrent ? "current" : "")">
+                    <span class="track-index" @onclick="() => Playback.SkipToQueueItemAsync(index)">@(i + 1)</span>
+                    <div class="track-copy" @onclick="() => Playback.SkipToQueueItemAsync(index)">
+                        <strong>@track.Title</strong>
+                        <span>@track.Artist - @track.AlbumTitle</span>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        @if (isCurrent)
+                        {
+                            <span class="track-meta current-track">▶ Now Playing</span>
+                        }
+                        <button class="ghost-button" @onclick="() => Playback.RemoveFromQueue(index)">✕ Remove</button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</section>
+
+<style>
+    .queue-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    .track-row.current {
+        background: linear-gradient(135deg, rgba(247, 79, 111, 0.12), rgba(255, 177, 75, 0.06));
+        border-left: 3px solid #f74f6f;
+    }
+    .current-track {
+        color: #f74f6f;
+        font-weight: 600;
+    }
+    .active {
+        color: #ffb14b;
+    }
+</style>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Playback.QueueChanged += HandleQueueChanged;
+        Playback.StateChanged += HandleStateChanged;
+    }
+
+    private void HandleQueueChanged() => InvokeAsync(StateHasChanged);
+    private void HandleStateChanged() => InvokeAsync(StateHasChanged);
+
+    private void CycleRepeatMode()
+    {
+        Playback.RepeatMode = Playback.RepeatMode switch
+        {
+            RepeatMode.Off => RepeatMode.Queue,
+            RepeatMode.Queue => RepeatMode.Track,
+            RepeatMode.Track => RepeatMode.Off,
+            _ => RepeatMode.Off
+        };
+    }
+
+    private string GetRepeatIcon() => Playback.RepeatMode switch
+    {
+        RepeatMode.Track => "🔂",
+        RepeatMode.Queue => "🔁",
+        _ => "🔁"
+    };
+
+    private string GetRepeatTitle() => Playback.RepeatMode switch
+    {
+        RepeatMode.Off => "Repeat: Off",
+        RepeatMode.Queue => "Repeat: Queue",
+        RepeatMode.Track => "Repeat: Track",
+        _ => "Repeat"
+    };
+
+    public void Dispose()
+    {
+        Playback.QueueChanged -= HandleQueueChanged;
+        Playback.StateChanged -= HandleStateChanged;
+    }
+}

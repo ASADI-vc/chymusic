@@ -66,19 +66,24 @@
                         </svg>
                     }
                 </button>
-                <span class="cache-icon" title="@(Playback.IsCached ? "Cached" : Playback.IsCaching ? "Caching..." : "Streaming")">
+                <span class="cache-icon" title="@GetCacheTooltip()">
                     @if (Playback.IsCached)
                     {
                         <svg viewBox="0 0 24 24" width="18" height="18" class="cached">
-                            <path fill="currentColor" d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2v9.67z"/>
+                            <path fill="currentColor"
+                                  d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2v9.67z"/>
                         </svg>
                     }
                     else if (Playback.IsCaching)
                     {
-                        <svg viewBox="0 0 24 24" width="18" height="18" class="caching-spinner">
-                            <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
-                            <path fill="currentColor" d="M12 4v2c3.31 0 6 2.69 6 6h2c0-4.41-3.59-8-8-8z"/>
-                        </svg>
+                        <div class="download-progress">
+                            <svg viewBox="0 0 24 24" width="18" height="18" class="caching-spinner">
+                                <path fill="currentColor"
+                                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+                                <path fill="currentColor" d="M12 4v2c3.31 0 6 2.69 6 6h2c0-4.41-3.59-8-8-8z"/>
+                            </svg>
+                            <span class="download-percent">@(_downloadPercent.ToString("0"))%</span>
+                        </div>
                     }
                     else
                     {
@@ -101,7 +106,8 @@
             <div class="player-audio">
                 <AudioPlayer Source="@Playback.CurrentSourceUrl"
                              OnEnded="HandleEnded"
-                             OnError="HandleError"/>
+                             OnError="HandleError"
+                             OnBufferedUpdate="UpdateDownloadProgress"/>
             </div>
         </div>
     }
@@ -169,8 +175,12 @@
     }
 
     @@keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
+        from {
+            transform: rotate(0deg);
+        }
+        to {
+            transform: rotate(360deg);
+        }
     }
 
     .cache-icon svg {
@@ -187,9 +197,25 @@
         opacity: 0.9;
         color: #ffb14b;
     }
+
+    .download-progress {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .download-percent {
+        position: absolute;
+        font-size: 7px;
+        font-weight: bold;
+        color: #ffb14b;
+        text-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+    }
 </style>
 
 @code {
+    private double _downloadPercent;
 
     protected override void OnInitialized()
     {
@@ -200,6 +226,19 @@
 
     private async Task HandleEnded() => await Playback.HandleTrackEndedAsync();
     private Task HandleError() => Playback.ReportPlaybackErrorAsync();
+
+    private void UpdateDownloadProgress(double percent)
+    {
+        _downloadPercent = percent;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private string GetCacheTooltip()
+    {
+        if (Playback.IsCached) return "Cached";
+        if (Playback.IsCaching) return $"Downloading... {_downloadPercent:0}%";
+        return "Streaming";
+    }
 
     private void CycleRepeatMode()
     {

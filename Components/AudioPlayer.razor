@@ -332,12 +332,16 @@
         }
     }
 
+    [Parameter] public EventCallback<double> OnBufferedUpdate { get; set; }
+
+    // Modify the OnProgress method to invoke the callback
     private async void OnProgress()
     {
         if (_module == null) return;
         try
         {
             _bufferedPercent = await _module.InvokeAsync<double>("getBufferedPercent", _audioElement);
+            await OnBufferedUpdate.InvokeAsync(_bufferedPercent);
             await InvokeAsync(StateHasChanged);
         }
         catch { }
