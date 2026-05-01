@@ -1,10 +1,17 @@
 @inherits LayoutComponentBase
 
 <div class="app-shell">
-    <aside class="sidebar-shell">
-        <NavMenu />
-    </aside>
+    <button class="sidebar-toggle" @onclick="ToggleSidebar">
+        <span>☰</span>
+    </button>
 
+    <aside class="sidebar-shell @(_sidebarOpen ? "open" : "")">
+        <NavMenu/>
+    </aside>
+    @if (_sidebarOpen)
+    {
+        <div class="sidebar-backdrop" @onclick="ToggleSidebar"></div>
+    }
     <main class="main-shell">
         <article class="page-content">
             @Body
@@ -12,4 +19,39 @@
     </main>
 </div>
 
-<PlayerBar />
+<PlayerBar/>
+
+
+<style>
+
+
+    .sidebar-backdrop {
+        display: none;
+    }
+
+    @@media (max-width: 960px) {
+    .sidebar-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 40;
+    }
+    }
+</style>
+
+@code {
+    private bool _sidebarOpen;
+
+    private void ToggleSidebar()
+    {
+        _sidebarOpen = !_sidebarOpen;
+    }
+
+    protected override void OnInitialized()
+    {
+        // On desktop, sidebar should be open by default
+        _sidebarOpen = true;
+    }
+
+}

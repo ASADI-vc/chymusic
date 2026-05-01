@@ -18,15 +18,18 @@
     </div>
 </section>
 
-<section class="panel-card wide-panel">
-    <div class="section-heading">
+<section class="panel-card wide-panel queue-list-panel">
+    <div class="section-heading queue-heading">
         <h2>Upcoming Tracks</h2>
         <div class="queue-actions">
-            <button class="ghost-button" @onclick="() => Playback.ShuffleEnabled = !Playback.ShuffleEnabled" title="Shuffle">
-                <span class="@(Playback.ShuffleEnabled ? "active" : "")">🔀 Shuffle</span>
+            <button class="ghost-button" @onclick="() => Playback.ShuffleEnabled = !Playback.ShuffleEnabled"
+                    title="Shuffle">
+                <span class="@(Playback.ShuffleEnabled ? "active" : "")">🔀</span>
+                <span class="action-text">Shuffle</span>
             </button>
             <button class="ghost-button" @onclick="CycleRepeatMode" title="@GetRepeatTitle()">
-                <span class="@(Playback.RepeatMode != RepeatMode.Off ? "active" : "")">@GetRepeatIcon() @GetRepeatTitle()</span>
+                <span class="@(Playback.RepeatMode != RepeatMode.Off ? "active" : "")">@GetRepeatIcon()</span>
+                <span class="action-text">@GetRepeatTitle()</span>
             </button>
             <button class="ghost-button" @onclick="() => Playback.ClearQueue()">Clear All</button>
         </div>
@@ -44,19 +47,43 @@
                 var track = Playback.Queue[i];
                 var index = i;
                 var isCurrent = i == Playback.QueueIndex;
-                <div class="track-row @(isCurrent ? "current" : "")">
-                    <span class="track-index" @onclick="() => Playback.SkipToQueueItemAsync(index)">@(i + 1)</span>
-                    <div class="track-copy" @onclick="() => Playback.SkipToQueueItemAsync(index)">
-                        <strong>@track.Title</strong>
-                        <span>@track.Artist - @track.AlbumTitle</span>
-                    </div>
-                    <div style="display: flex; gap: 0.5rem; align-items: center;">
-                        @if (isCurrent)
+                <div class="queue-track-row @(isCurrent ? "current" : "")"
+                     @onclick="() => Playback.SkipToQueueItemAsync(index)">
+                    <span class="track-index">@(i + 1)</span>
+                    <img class="track-cover" src="@CoverUrl(track.CoverImageUrl)" alt=""/>
+                    <div class="track-info">
+                        @if (IsTextOverflow(track.Title, 22))
                         {
-                            <span class="track-meta current-track">▶ Now Playing</span>
+                            <div class="marquee-container">
+                                <div class="marquee-track animate">
+                                    <span>@track.Title</span>
+                                    <span>@track.Title</span>
+                                </div>
+                            </div>
                         }
-                        <button class="ghost-button" @onclick="() => Playback.RemoveFromQueue(index)">✕ Remove</button>
+                        else
+                        {
+                            <span class="marquee-text-static">@track.Title</span>
+                        }
+
+                        @if (IsTextOverflow($"{track.Artist} - {track.AlbumTitle}", 30))
+                        {
+                            <div class="marquee-container">
+                                <div class="marquee-track animate">
+                                    <span>@track.Artist - @track.AlbumTitle</span>
+                                    <span>@track.Artist - @track.AlbumTitle</span>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <span class="marquee-text-static">@track.Artist - @track.AlbumTitle</span>
+                        }
                     </div>
+                    <button class="remove-btn" @onclick="() => RemoveTrack(index)" @onclick:stopPropagation="true"
+                            title="Remove">
+                        <span>✕</span>
+                    </button>
                 </div>
             }
         </div>
@@ -64,25 +91,196 @@
 </section>
 
 <style>
+    .queue-list-panel {
+        margin-top: 1.8rem;
+    }
+
+    .queue-heading {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
     .queue-actions {
         display: flex;
         gap: 0.5rem;
         flex-wrap: wrap;
+        align-items: center;
     }
-    .track-row.current {
+
+    .action-text {
+        margin-left: 0.25rem;
+    }
+
+    .queue-track-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.7rem 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 1rem;
+        background: rgba(255, 255, 255, 0.03);
+        transition: background 0.15s;
+        margin-bottom: 0.5rem;
+        cursor: pointer;
+        min-width: 0;
+    }
+
+    .queue-track-row.current {
         background: linear-gradient(135deg, rgba(247, 79, 111, 0.12), rgba(255, 177, 75, 0.06));
         border-left: 3px solid #f74f6f;
+        padding-left: calc(1rem - 3px);
     }
-    .current-track {
-        color: #f74f6f;
+
+    .track-index {
+        width: 1.8rem;
+        text-align: center;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 0.85rem;
         font-weight: 600;
+        flex-shrink: 0;
     }
+
+    .track-cover {
+        width: 2.4rem;
+        height: 2.4rem;
+        border-radius: 0.5rem;
+        object-fit: cover;
+        flex-shrink: 0;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+
+    .track-info {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+        overflow: hidden;
+    }
+
+    .marquee-container {
+        overflow: hidden;
+        white-space: nowrap;
+    }
+
+    .marquee-track {
+        display: inline-flex;
+    }
+
+    /* Desktop – only show first span, hide duplicate, truncate with ellipsis */
+    .marquee-track.animate {
+        animation: none;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 100%;
+        display: block;
+    }
+
+    .marquee-track.animate span:first-child {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: block;
+    }
+
+    .marquee-track.animate span:last-child {
+        display: none;
+    }
+
+    .marquee-track span {
+        padding-right: 3rem;
+    }
+
+    @@keyframes marquee {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
+    }
+
+    .marquee-text-static {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: block;
+    }
+
+    .remove-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.2rem;
+        height: 2.2rem;
+        border-radius: 50%;
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 1rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        flex-shrink: 0;
+    }
+
+    .remove-btn:hover {
+        background: rgba(247, 79, 111, 0.2);
+        color: #f74f6f;
+        border-color: #f74f6f;
+    }
+
     .active {
         color: #ffb14b;
+    }
+
+    /* Mobile: enable marquee and show duplicate */
+    @@media (max-width: 640px) {
+        .queue-track-row {
+            padding: 0.6rem 0.8rem;
+            gap: 0.5rem;
+        }
+
+        .track-cover {
+            width: 2.2rem;
+            height: 2.2rem;
+        }
+
+        .track-index {
+            width: 1.5rem;
+            font-size: 0.8rem;
+        }
+
+        .remove-btn {
+            width: 2rem;
+            height: 2rem;
+            font-size: 0.9rem;
+        }
+
+        .queue-heading h2 {
+            font-size: 1.3rem;
+            white-space: nowrap;
+        }
+
+        /* Activate smooth looping marquee */
+        .marquee-track.animate {
+            animation: marquee 10s linear infinite;
+            display: inline-flex;
+            max-width: none;
+            overflow: visible;
+            white-space: nowrap;
+        }
+
+        .marquee-track.animate span:first-child {
+            overflow: visible;
+            text-overflow: clip;
+            display: inline;
+        }
+
+        .marquee-track.animate span:last-child {
+            display: inline;
+        }
     }
 </style>
 
 @code {
+
     protected override void OnInitialized()
     {
         Playback.QueueChanged += HandleQueueChanged;
@@ -91,6 +289,11 @@
 
     private void HandleQueueChanged() => InvokeAsync(StateHasChanged);
     private void HandleStateChanged() => InvokeAsync(StateHasChanged);
+
+    private void RemoveTrack(int index)
+    {
+        Playback.RemoveFromQueue(index);
+    }
 
     private void CycleRepeatMode()
     {
@@ -118,9 +321,18 @@
         _ => "Repeat"
     };
 
+    private bool IsTextOverflow(string text, int maxLength)
+    {
+        return !string.IsNullOrEmpty(text) && text.Length > maxLength;
+    }
+
+    private static string CoverUrl(string? url) =>
+        string.IsNullOrWhiteSpace(url) ? "/favicon.png" : url;
+
     public void Dispose()
     {
         Playback.QueueChanged -= HandleQueueChanged;
         Playback.StateChanged -= HandleStateChanged;
     }
+
 }
