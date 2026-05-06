@@ -4,6 +4,44 @@ let dotNetHelper = null;
 export function initialize(element, helper) {
     audioElement = element;
     dotNetHelper = helper;
+
+    if (!audioElement) return;
+
+    audioElement.addEventListener('timeupdate', () => {
+        if (dotNetHelper) {
+            dotNetHelper.invokeMethodAsync('UpdateTime', audioElement.currentTime, audioElement.duration);
+        }
+    });
+
+    audioElement.addEventListener('progress', () => {
+        if (dotNetHelper && audioElement.buffered.length > 0) {
+            const buffered = audioElement.buffered.end(audioElement.buffered.length - 1);
+            const percent = (buffered / audioElement.duration) * 100;
+            dotNetHelper.invokeMethodAsync('UpdateBuffered', percent);
+        }
+    });
+
+    audioElement.addEventListener('play', () => {
+        if (dotNetHelper) dotNetHelper.invokeMethodAsync('OnPlayStateChanged', true);
+    });
+
+    audioElement.addEventListener('pause', () => {
+        if (dotNetHelper) dotNetHelper.invokeMethodAsync('OnPlayStateChanged', false);
+    });
+
+    audioElement.addEventListener('ended', () => {
+        if (dotNetHelper) dotNetHelper.invokeMethodAsync('OnEndedJs');
+    });
+
+    audioElement.addEventListener('error', () => {
+        // Ignore blob range errors – they don't affect playback
+        if (audioElement.src.startsWith('blob:') &&
+            audioElement.error && audioElement.error.message.includes('range')) {
+            console.debug('Ignoring blob range request error');
+            return;
+        }
+        if (dotNetHelper) dotNetHelper.invokeMethodAsync('OnErrorJs');
+    });
 }
 
 export function setSource(element, url) {
@@ -38,10 +76,7 @@ export function getBoundingClientRect(element) {
 
 export function getTimeInfo(element) {
     if (!element) return { currentTime: 0, duration: 0 };
-    return {
-        currentTime: element.currentTime || 0,
-        duration: element.duration && isFinite(element.duration) ? element.duration : 0
-    };
+    return { currentTime: element.currentTime || 0, duration: element.duration && isFinite(element.duration) ? element.duration : 0 };
 }
 
 export function getBufferedPercent(element) {

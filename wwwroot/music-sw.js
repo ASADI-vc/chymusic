@@ -31,23 +31,25 @@ self.addEventListener("activate", event => {
 
 self.addEventListener("fetch", event => {
     const requestUrl = new URL(event.request.url);
-    const isAudioHost = requestUrl.hostname === "dl.musicsbaran.ir";
 
-    if (isAudioHost) {
-        if (event.request.method !== 'GET') return;
-        event.respondWith(handleAudioRequest(event.request));
-        return;
-    }
-
+    // 1. Skip dynamic module imports
     if (requestUrl.pathname.startsWith("/js/")) {
         return;
     }
 
+    // 2. Data files – stale-while-revalidate
     if (requestUrl.pathname.startsWith("/data/")) {
         event.respondWith(handleDataRequest(event.request));
         return;
     }
 
+    // 3. Proxied audio – dedicated cache with range support
+    if (requestUrl.pathname.startsWith("/proxy.php")) {
+        event.respondWith(handleAudioRequest(event.request));
+        return;
+    }
+
+    // 4. All other same‑origin GET requests – cache first, then network
     if (event.request.method === 'GET' && requestUrl.origin === location.origin) {
         event.respondWith(
             caches.open(APP_CACHE).then(cache => {
@@ -67,55 +69,71 @@ self.addEventListener("fetch", event => {
 });
 
 /**
- * Audio request handler with retry logic (up to 5 attempts) for 403 errors.
+ * Audio request handler – caches full responses and serves range requests from cache
  */
 async function handleAudioRequest(request) {
     const cache = await caches.open(AUDIO_CACHE);
-    const cached = await cache.match(request);
-    if (cached && cached.type !== 'opaque') {
+    const rangeHeader = request.headers.get('range');
+
+    if (rangeHeader) {
+        const cached = await cache.match(request.url, { ignoreSearch: true });
+        if (cached && cached.ok) {
+            try {
+                const blob = await cached.blob();
+                const [start, end] = parseRange(rangeHeader, blob.size);
+                const sliced = blob.slice(start, end + 1);
+                return new Response(sliced, {
+                    status: 206,
+                    headers: {
+                        'Content-Range': `bytes ${start}-${end}/${blob.size}`,
+                        'Accept-Ranges': 'bytes',
+                        'Content-Length': sliced.size,
+                        'Content-Type': cached.headers.get('Content-Type') || 'audio/mpeg'
+                    }
+                });
+            } catch (err) {
+                console.warn('Failed to slice cached audio, re-fetching');
+            }
+        }
+        // No cache – fetch full file
+        const fullResponse = await fetch(request.url);
+        if (!fullResponse.ok) return fullResponse;
+        const blob = await fullResponse.blob();
+        await cache.put(request.url, new Response(blob, {
+            headers: fullResponse.headers
+        }));
+        const [start, end] = parseRange(rangeHeader, blob.size);
+        const sliced = blob.slice(start, end + 1);
+        return new Response(sliced, {
+            status: 206,
+            headers: {
+                'Content-Range': `bytes ${start}-${end}/${blob.size}`,
+                'Accept-Ranges': 'bytes',
+                'Content-Length': sliced.size,
+                'Content-Type': fullResponse.headers.get('Content-Type') || 'audio/mpeg'
+            }
+        });
+    }
+
+    // Normal request – cache first
+    const cached = await cache.match(request.url, { ignoreSearch: true });
+    if (cached && cached.ok) {
         return cached;
     }
 
-    const maxRetries = 5;
-    let lastError;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            const corsRequest = new Request(request.url, {
-                mode: 'cors',
-                credentials: 'omit',
-                referrerPolicy: 'no-referrer'
-            });
-            const response = await fetch(corsRequest);
-
-            if (response.ok) {
-                await cache.put(request, response.clone());
-                return response;
-            }
-
-            if (response.status === 403) {
-                console.warn(`Audio fetch attempt ${attempt} returned 403 for ${request.url}`);
-                lastError = new Error(`HTTP 403 Forbidden (attempt ${attempt})`);
-                if (attempt < maxRetries) {
-                    // Exponential backoff: 300ms, 600ms, 1.2s, 2.4s
-                    await new Promise(r => setTimeout(r, 300 * Math.pow(2, attempt - 1)));
-                }
-                continue;
-            }
-
-            // Other HTTP errors – do not retry
-            return response;
-        } catch (error) {
-            console.warn(`Audio fetch attempt ${attempt} failed:`, error);
-            lastError = error;
-            if (attempt < maxRetries) {
-                await new Promise(r => setTimeout(r, 300 * Math.pow(2, attempt - 1)));
-            }
-        }
+    const networkResponse = await fetch(request.url);
+    if (networkResponse.ok) {
+        await cache.put(request.url, networkResponse.clone());
     }
+    return networkResponse;
+}
 
-    console.error(`All ${maxRetries} attempts failed for ${request.url}. Last error:`, lastError);
-    return Response.error();
+function parseRange(rangeHeader, totalSize) {
+    const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+    if (!match) return [0, totalSize - 1];
+    const start = parseInt(match[1], 10);
+    const end = match[2] ? parseInt(match[2], 10) : totalSize - 1;
+    return [start, Math.min(end, totalSize - 1)];
 }
 
 async function handleDataRequest(request) {

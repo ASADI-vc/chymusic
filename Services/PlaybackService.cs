@@ -45,7 +45,6 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
                 ShuffleList(remaining);
                 _queue = _queue.Take(_queueIndex + 1).Concat(remaining).ToList();
             }
-
             NotifyStateChanged();
             NotifyQueueChanged();
         }
@@ -84,7 +83,6 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
             ShuffleList(remaining);
             _queue = _queue.Take(_queueIndex + 1).Concat(remaining).ToList();
         }
-
         await SelectCurrentAsync(_queue[_queueIndex]);
         NotifyQueueChanged();
     }
@@ -103,7 +101,6 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
             ShuffleList(newItems);
             _queue = _queue.Take(_queue.Count - trackList.Count).Concat(newItems).ToList();
         }
-
         NotifyQueueChanged();
         if (CurrentTrack == null && _queue.Count > 0)
         {
@@ -136,10 +133,8 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
                 await SelectCurrentAsync(_queue[_queueIndex]);
                 NotifyQueueChanged();
             }
-
             return;
         }
-
         _queueIndex++;
         await SelectCurrentAsync(_queue[_queueIndex]);
         NotifyQueueChanged();
@@ -190,7 +185,6 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
         {
             _queue.RemoveAt(index);
         }
-
         NotifyQueueChanged();
         NotifyStateChanged();
     }
@@ -276,13 +270,39 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
         var remoteUrl = track.PreferredUrl;
         var cachedUrl = await jsRuntime.InvokeAsync<string?>("musicCache.getPlayableUrl", track.Id, remoteUrl);
 
-        IsCached = !string.IsNullOrWhiteSpace(cachedUrl);
-        CurrentSourceUrl = cachedUrl ?? remoteUrl;
+        // Use local blob when available (instant, no download)
+        // Otherwise, fall back to the proxy URL (which will be served from SW cache if cached)
+        if (!string.IsNullOrWhiteSpace(cachedUrl))
+        {
+            IsCached = true;
+            CurrentSourceUrl = cachedUrl;
+        }
+        else
+        {
+            CurrentSourceUrl = ProxyUrl(remoteUrl);
+        }
+
         IsPreparing = false;
         PlaybackVersion++;
         NotifyStateChanged();
 
         _ = PrefetchAsync(track.Id, remoteUrl);
+    }
+
+    // Proxy helper – single encode
+    private static string ProxyUrl(string? remoteUrl)
+    {
+        if (string.IsNullOrWhiteSpace(remoteUrl))
+            return string.Empty;
+        if (remoteUrl.StartsWith("https://dl.musicsbaran.ir/") ||
+            remoteUrl.StartsWith("http://dl.musicsbaran.ir/"))
+        {
+            // Decode the URL first (it may already contain %20 etc.), then encode once
+            var decoded = Uri.UnescapeDataString(remoteUrl);
+            var encoded = Uri.EscapeDataString(decoded);
+            return $"/proxy.php?url={encoded}";
+        }
+        return remoteUrl;
     }
 
     private async Task PrefetchAsync(int trackId, string remoteUrl)
@@ -292,12 +312,12 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
         NotifyStateChanged();
         try
         {
-            var cached = await jsRuntime.InvokeAsync<bool>("musicCache.prefetchTrack", trackId, remoteUrl);
+            // Use the proxy URL so background fetch also goes through your own server
+            var proxyUrl = ProxyUrl(remoteUrl);
+            var cached = await jsRuntime.InvokeAsync<bool>("musicCache.prefetchTrack", trackId, proxyUrl);
             IsCached = cached;
         }
-        catch
-        {
-        }
+        catch { }
         finally
         {
             IsCaching = false;
@@ -343,8 +363,7 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
     public Task ReportPlaybackErrorAsync()
     {
         PlaybackBlocked = true;
-        PlaybackError =
-            "The music host blocked in-page playback for this track. Try opening the direct file in a new tab or use a source that allows embedded streaming.";
+        PlaybackError = "The music host blocked in-page playback for this track. Try opening the direct file in a new tab or use a source that allows embedded streaming.";
         NotifyStateChanged();
         return Task.CompletedTask;
     }
@@ -353,52 +372,27 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
     private void NotifyQueueChanged() => QueueChanged?.Invoke();
 
     // File system access methods
-    public async Task<bool> RequestFolderAccessAsync() =>
-        await jsRuntime.InvokeAsync<bool>("musicCache.requestFolderAccess");
-
-    public async Task<bool> IsFolderAccessGrantedAsync() =>
-        await jsRuntime.InvokeAsync<bool>("musicCache.isFolderAccessGranted");
-
+    public async Task<bool> RequestFolderAccessAsync() => await jsRuntime.InvokeAsync<bool>("musicCache.requestFolderAccess");
+    public async Task<bool> IsFolderAccessGrantedAsync() => await jsRuntime.InvokeAsync<bool>("musicCache.isFolderAccessGranted");
     public async Task<bool> IsFileSystemAccessSupportedAsync()
     {
-        try
-        {
-            return await jsRuntime.InvokeAsync<bool>("musicCache.isFileSystemAccessSupported");
-        }
-        catch
-        {
-            return false;
-        }
+        try { return await jsRuntime.InvokeAsync<bool>("musicCache.isFileSystemAccessSupported"); }
+        catch { return false; }
     }
-
     public async Task<bool> ReconnectFolderAsync()
     {
-        try
-        {
-            return await jsRuntime.InvokeAsync<bool>("musicCache.reconnectFolder");
-        }
-        catch
-        {
-            return false;
-        }
+        try { return await jsRuntime.InvokeAsync<bool>("musicCache.reconnectFolder"); }
+        catch { return false; }
     }
-
     public async Task<bool> HasStoredHandleAsync()
     {
-        try
-        {
-            return await jsRuntime.InvokeAsync<bool>("musicCache.hasStoredHandle");
-        }
-        catch
-        {
-            return false;
-        }
+        try { return await jsRuntime.InvokeAsync<bool>("musicCache.hasStoredHandle"); }
+        catch { return false; }
     }
 
     public Task PlaySingleTrackAsync(MusicTrack track, MusicAlbum? albumContext = null)
     {
         if (!track.HasSource) return Task.CompletedTask;
-
         var enrichedTrack = new MusicTrack
         {
             Id = track.Id,
@@ -413,7 +407,6 @@ public sealed class PlaybackService(IJSRuntime jsRuntime)
             DownloadUrl320 = track.DownloadUrl320,
         };
         EnrichTracksWithAlbumContext(new[] { enrichedTrack }, albumContext);
-
         return PlayNowAsync(new[] { enrichedTrack }, 0, albumContext);
     }
 }

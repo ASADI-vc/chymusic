@@ -69,14 +69,12 @@ window.musicCache = (() => {
         return 'showDirectoryPicker' in window;
     }
 
-    // Check if we have a stored handle (but permission may be missing)
     async function hasStoredHandle() {
         if (!isFileSystemAccessSupported()) return false;
         const stored = await getSetting('directoryHandle');
         return !!stored;
     }
 
-    // Called when user clicks "Reconnect Folder"
     async function reconnectFolder() {
         if (!isFileSystemAccessSupported()) return false;
 
@@ -84,7 +82,6 @@ window.musicCache = (() => {
         if (!stored) return false;
 
         try {
-            // Request permission – must be triggered by user click
             const permission = await stored.requestPermission({ mode: 'readwrite' });
             if (permission === 'granted') {
                 directoryHandle = stored;
@@ -102,7 +99,6 @@ window.musicCache = (() => {
 
         try {
             const handle = await window.showDirectoryPicker();
-            // Request permission immediately to ensure it's granted
             const perm = await handle.requestPermission({ mode: 'readwrite' });
             if (perm === 'granted') {
                 directoryHandle = handle;
@@ -144,11 +140,21 @@ window.musicCache = (() => {
         }
     }
 
-    async function getPlayableUrl(id) {
+    // ---------- Public API ----------
+
+    /**
+     * Returns a playable URL for the track.
+     * 1. Memory cache
+     * 2. IndexedDB blob
+     * 3. File system (if folder access granted) – also rebuilds IndexedDB record if missing
+     */
+    async function getPlayableUrl(id, remoteUrl) {
+        // Memory cache
         if (memoryUrls.has(id)) {
             return memoryUrls.get(id);
         }
 
+        // IndexedDB
         const record = await readTrack(id);
         if (record?.blob) {
             const url = URL.createObjectURL(record.blob);
@@ -156,25 +162,39 @@ window.musicCache = (() => {
             return url;
         }
 
-        if (directoryHandle && record?.remoteUrl) {
+        // File system – if record missing but we have folder access
+        if (directoryHandle && remoteUrl) {
             try {
-                const fileHandle = await getTrackFileHandle(id, record.remoteUrl, false);
+                const fileHandle = await getTrackFileHandle(id, remoteUrl, false);
                 if (fileHandle) {
                     const file = await fileHandle.getFile();
+                    // Rebuild the IndexedDB record so it doesn't re-download
+                    await writeTrack({
+                        id,
+                        remoteUrl,
+                        blob: null,       // blob is on disk now
+                        cachedAt: new Date().toISOString()
+                    });
                     const url = URL.createObjectURL(file);
                     memoryUrls.set(id, url);
                     return url;
                 }
-            } catch {}
+            } catch { /* file not found in folder */ }
         }
 
         return null;
     }
 
+    /**
+     * Prefetch and cache a track for offline use.
+     * If it already exists in IndexedDB or in the file system, no download occurs.
+     */
     async function prefetchTrack(id, remoteUrl) {
+        // Already cached in IndexedDB
         const existing = await readTrack(id);
         if (existing?.blob) return true;
 
+        // Check file system – if present, just update IndexedDB
         if (directoryHandle) {
             try {
                 const fileHandle = await getTrackFileHandle(id, remoteUrl, false);
@@ -183,11 +203,11 @@ window.musicCache = (() => {
                     await writeTrack({ id, remoteUrl, blob: null, cachedAt: new Date().toISOString() });
                     return true;
                 }
-            } catch {}
+            } catch { /* not in folder */ }
         }
 
-        // Retry up to 3 times for prefetch (background)
-        const maxRetries = 5;
+        // Download from network with retry
+        const maxRetries = 3;
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
                 const response = await fetch(remoteUrl, {
@@ -196,6 +216,7 @@ window.musicCache = (() => {
                     credentials: "omit",
                     referrerPolicy: "no-referrer",
                 });
+
                 if (!response.ok) {
                     if (response.status === 403 && attempt < maxRetries) {
                         await new Promise(r => setTimeout(r, 500 * attempt));
@@ -203,8 +224,14 @@ window.musicCache = (() => {
                     }
                     return false;
                 }
-                const blob = await response.blob();
 
+                const contentType = response.headers.get('Content-Type') || '';
+                if (!contentType.startsWith('audio/') && contentType !== 'application/octet-stream') {
+                    console.warn('Prefetch returned non‑audio content type:', contentType);
+                    return false;
+                }
+
+                const blob = await response.blob();
                 await writeTrack({ id, remoteUrl, blob, cachedAt: new Date().toISOString() });
 
                 if (directoryHandle) {
