@@ -125,14 +125,33 @@ window.musicCache = (() => {
         return name.replace(/[/\\?%*:|"<>]/g, '-');
     }
 
-    async function getTrackFileHandle(id, remoteUrl, create = false) {
+    /**
+     * Extract the original track filename from a proxy URL.
+     * Example proxy URL: /proxy.php?url=https://dl.musicsbaran.ir/.../track.mp3
+     * Returns the last path segment of the 'url' parameter.
+     */
+    function getOriginalFilename(proxyUrl) {
+        if (proxyUrl && proxyUrl.includes('/proxy.php?url=')) {
+            const queryString = proxyUrl.split('?url=')[1];
+            if (queryString) {
+                const decoded = decodeURIComponent(queryString);
+                const parts = decoded.split('/');
+                let filename = parts.pop() || '';
+                if (!filename.includes('.')) filename += '.mp3';
+                return sanitizeFilename(filename);
+            }
+        }
+        // Fallback: use the last path segment of the URL
+        const parts = proxyUrl.split('/');
+        let filename = parts.pop() || '';
+        if (!filename.includes('.')) filename += '.mp3';
+        return sanitizeFilename(filename);
+    }
+
+    async function getTrackFileHandle(id, proxyUrl, create = false) {
         if (!directoryHandle) return null;
 
-        const urlParts = remoteUrl.split('/');
-        let filename = urlParts.pop() || `track-${id}`;
-        if (!filename.includes('.')) filename += '.mp3';
-        filename = sanitizeFilename(filename);
-
+        const filename = getOriginalFilename(proxyUrl);
         try {
             return await directoryHandle.getFileHandle(filename, { create });
         } catch {
@@ -141,13 +160,6 @@ window.musicCache = (() => {
     }
 
     // ---------- Public API ----------
-
-    /**
-     * Returns a playable URL for the track.
-     * 1. Memory cache
-     * 2. IndexedDB blob
-     * 3. File system (if folder access granted) – also rebuilds IndexedDB record if missing
-     */
     async function getPlayableUrl(id, remoteUrl) {
         // Memory cache
         if (memoryUrls.has(id)) {
@@ -189,7 +201,7 @@ window.musicCache = (() => {
      * Prefetch and cache a track for offline use.
      * If it already exists in IndexedDB or in the file system, no download occurs.
      */
-    async function prefetchTrack(id, remoteUrl) {
+    async function prefetchTrack(id, proxyUrl) {
         // Already cached in IndexedDB
         const existing = await readTrack(id);
         if (existing?.blob) return true;
@@ -197,10 +209,10 @@ window.musicCache = (() => {
         // Check file system – if present, just update IndexedDB
         if (directoryHandle) {
             try {
-                const fileHandle = await getTrackFileHandle(id, remoteUrl, false);
+                const fileHandle = await getTrackFileHandle(id, proxyUrl, false);
                 if (fileHandle) {
                     const file = await fileHandle.getFile();
-                    await writeTrack({ id, remoteUrl, blob: null, cachedAt: new Date().toISOString() });
+                    await writeTrack({ id, remoteUrl: proxyUrl, blob: null, cachedAt: new Date().toISOString() });
                     return true;
                 }
             } catch { /* not in folder */ }
@@ -210,7 +222,7 @@ window.musicCache = (() => {
         const maxRetries = 3;
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                const response = await fetch(remoteUrl, {
+                const response = await fetch(proxyUrl, {
                     mode: "cors",
                     cache: "no-store",
                     credentials: "omit",
@@ -232,11 +244,11 @@ window.musicCache = (() => {
                 }
 
                 const blob = await response.blob();
-                await writeTrack({ id, remoteUrl, blob, cachedAt: new Date().toISOString() });
+                await writeTrack({ id, remoteUrl: proxyUrl, blob, cachedAt: new Date().toISOString() });
 
                 if (directoryHandle) {
                     try {
-                        const fileHandle = await getTrackFileHandle(id, remoteUrl, true);
+                        const fileHandle = await getTrackFileHandle(id, proxyUrl, true);
                         const writable = await fileHandle.createWritable();
                         await writable.write(blob);
                         await writable.close();
