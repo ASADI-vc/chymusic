@@ -67,7 +67,7 @@ p {
 .panel-card,
 .album-hero,
 .player-shell {
-    backdrop-filter: blur(18px);
+    backdrop-filter: initial;
     box-shadow: var(--shadow);
 }
 

@@ -1,6 +1,5 @@
 const APP_CACHE = "musicweb-app-v1";
 const DATA_CACHE = "musicweb-data-v1";
-const AUDIO_CACHE = "musicweb-audio-v1";
 
 const APP_FILES = [
     "/",
@@ -26,7 +25,18 @@ self.addEventListener("install", event => {
 });
 
 self.addEventListener("activate", event => {
-    event.waitUntil(self.clients.claim());
+    // Delete any old audio caches that might exist from previous versions
+    event.waitUntil(
+        (async () => {
+            const cacheKeys = await caches.keys();
+            await Promise.all(
+                cacheKeys
+                    .filter(key => key !== APP_CACHE && key !== DATA_CACHE)
+                    .map(key => caches.delete(key))
+            );
+            await self.clients.claim();
+        })()
+    );
 });
 
 self.addEventListener("fetch", event => {
@@ -43,10 +53,10 @@ self.addEventListener("fetch", event => {
         return;
     }
 
-    // 3. Proxied audio – dedicated cache with range support
+    // 3. Proxied audio – DO NOT CACHE, just pass through
     if (requestUrl.pathname.startsWith("/proxy.php")) {
-        event.respondWith(handleAudioRequest(event.request));
-        return;
+        // Simply fetch from network – no service worker caching
+        return; // event.respondWith() not called -> network only
     }
 
     // 4. All other same‑origin GET requests – cache first, then network
@@ -67,74 +77,6 @@ self.addEventListener("fetch", event => {
         return;
     }
 });
-
-/**
- * Audio request handler – caches full responses and serves range requests from cache
- */
-async function handleAudioRequest(request) {
-    const cache = await caches.open(AUDIO_CACHE);
-    const rangeHeader = request.headers.get('range');
-
-    if (rangeHeader) {
-        const cached = await cache.match(request.url, { ignoreSearch: true });
-        if (cached && cached.ok) {
-            try {
-                const blob = await cached.blob();
-                const [start, end] = parseRange(rangeHeader, blob.size);
-                const sliced = blob.slice(start, end + 1);
-                return new Response(sliced, {
-                    status: 206,
-                    headers: {
-                        'Content-Range': `bytes ${start}-${end}/${blob.size}`,
-                        'Accept-Ranges': 'bytes',
-                        'Content-Length': sliced.size,
-                        'Content-Type': cached.headers.get('Content-Type') || 'audio/mpeg'
-                    }
-                });
-            } catch (err) {
-                console.warn('Failed to slice cached audio, re-fetching');
-            }
-        }
-        // No cache – fetch full file
-        const fullResponse = await fetch(request.url);
-        if (!fullResponse.ok) return fullResponse;
-        const blob = await fullResponse.blob();
-        await cache.put(request.url, new Response(blob, {
-            headers: fullResponse.headers
-        }));
-        const [start, end] = parseRange(rangeHeader, blob.size);
-        const sliced = blob.slice(start, end + 1);
-        return new Response(sliced, {
-            status: 206,
-            headers: {
-                'Content-Range': `bytes ${start}-${end}/${blob.size}`,
-                'Accept-Ranges': 'bytes',
-                'Content-Length': sliced.size,
-                'Content-Type': fullResponse.headers.get('Content-Type') || 'audio/mpeg'
-            }
-        });
-    }
-
-    // Normal request – cache first
-    const cached = await cache.match(request.url, { ignoreSearch: true });
-    if (cached && cached.ok) {
-        return cached;
-    }
-
-    const networkResponse = await fetch(request.url);
-    if (networkResponse.ok) {
-        await cache.put(request.url, networkResponse.clone());
-    }
-    return networkResponse;
-}
-
-function parseRange(rangeHeader, totalSize) {
-    const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
-    if (!match) return [0, totalSize - 1];
-    const start = parseInt(match[1], 10);
-    const end = match[2] ? parseInt(match[2], 10) : totalSize - 1;
-    return [start, Math.min(end, totalSize - 1)];
-}
 
 async function handleDataRequest(request) {
     const cache = await caches.open(DATA_CACHE);

@@ -1,6 +1,8 @@
 @page "/queue"
 @implements IDisposable
 @inject PlaybackService Playback
+@inject PlaylistService PlaylistService
+@inject IJSRuntime JS
 
 <PageTitle>Queue - CHY MUSIC</PageTitle>
 
@@ -22,8 +24,7 @@
     <div class="section-heading queue-heading">
         <h2>Upcoming Tracks</h2>
         <div class="queue-actions">
-            <button class="ghost-button" @onclick="() => Playback.ShuffleEnabled = !Playback.ShuffleEnabled"
-                    title="Shuffle">
+            <button class="ghost-button" @onclick="() => Playback.ShuffleEnabled = !Playback.ShuffleEnabled" title="Shuffle">
                 <span class="@(Playback.ShuffleEnabled ? "active" : "")">🔀</span>
                 <span class="action-text">Shuffle</span>
             </button>
@@ -32,6 +33,7 @@
                 <span class="action-text">@GetRepeatTitle()</span>
             </button>
             <button class="ghost-button" @onclick="() => Playback.ClearQueue()">Clear All</button>
+            <button class="ghost-button" @onclick="SaveQueueAsPlaylist">💾 Save as Playlist</button>
         </div>
     </div>
 
@@ -47,10 +49,9 @@
                 var track = Playback.Queue[i];
                 var index = i;
                 var isCurrent = i == Playback.QueueIndex;
-                <div class="queue-track-row @(isCurrent ? "current" : "")"
-                     @onclick="() => Playback.SkipToQueueItemAsync(index)">
+                <div class="queue-track-row @(isCurrent ? "current" : "")" @onclick="() => Playback.SkipToQueueItemAsync(index)">
                     <span class="track-index">@(i + 1)</span>
-                    <img class="track-cover" src="@CoverUrl(track.CoverImageUrl)" alt=""/>
+                    <img class="track-cover" src="@CoverUrl(track.CoverImageUrl)" alt="" />
                     <div class="track-info">
                         @if (IsTextOverflow(track.Title, 22))
                         {
@@ -80,8 +81,7 @@
                             <span class="marquee-text-static">@track.Artist - @track.AlbumTitle</span>
                         }
                     </div>
-                    <button class="remove-btn" @onclick="() => RemoveTrack(index)" @onclick:stopPropagation="true"
-                            title="Remove">
+                    <button class="remove-btn" @onclick="() => RemoveTrack(index)" @onclick:stopPropagation="true" title="Remove">
                         <span>✕</span>
                     </button>
                 </div>
@@ -167,7 +167,7 @@
         display: inline-flex;
     }
 
-    /* Desktop – only show first span, hide duplicate, truncate with ellipsis */
+    /* Desktop – ellipsis */
     .marquee-track.animate {
         animation: none;
         overflow: hidden;
@@ -230,7 +230,7 @@
         color: #ffb14b;
     }
 
-    /* Mobile: enable marquee and show duplicate */
+    /* Mobile */
     @@media (max-width: 640px) {
         .queue-track-row {
             padding: 0.6rem 0.8rem;
@@ -258,7 +258,6 @@
             white-space: nowrap;
         }
 
-        /* Activate smooth looping marquee */
         .marquee-track.animate {
             animation: marquee 10s linear infinite;
             display: inline-flex;
@@ -280,7 +279,6 @@
 </style>
 
 @code {
-
     protected override void OnInitialized()
     {
         Playback.QueueChanged += HandleQueueChanged;
@@ -293,6 +291,29 @@
     private void RemoveTrack(int index)
     {
         Playback.RemoveFromQueue(index);
+    }
+
+    private async Task SaveQueueAsPlaylist()
+    {
+        var name = await JS.InvokeAsync<string>("prompt", "Playlist name:");
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        var playlist = await PlaylistService.CreatePlaylistAsync(name);
+        foreach (var track in Playback.Queue)
+        {
+            // Create album context from track metadata
+            var album = new MusicAlbum
+            {
+                Id = track.AlbumId ?? 0,
+                TitleFa = track.AlbumTitle,
+                AlbumName = track.AlbumTitle,
+                ArtistName = new List<string> { track.Artist },
+                CoverImageUrl = track.CoverImageUrl,
+                Tracks = new List<MusicTrack> { track }
+            };
+            await PlaylistService.AddTrackToPlaylistAsync(playlist.Id, track, album);
+        }
+        await JS.InvokeVoidAsync("alert", $"Queue saved as playlist '{name}'.");
     }
 
     private void CycleRepeatMode()
@@ -334,5 +355,4 @@
         Playback.QueueChanged -= HandleQueueChanged;
         Playback.StateChanged -= HandleStateChanged;
     }
-
 }

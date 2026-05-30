@@ -34,10 +34,18 @@
     <script src="js/musicCache.js"></script>
     <script src="js/playlistStorage.js"></script>
     <script src="js/audioHelper.js"></script>
-    
     <script>
-        if ("serviceWorker" in navigator) {
-            navigator.serviceWorker.register("music-sw.js", { scope: "/" });
+        // Force-unregister all old service workers, then load the new one
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                for (let registration of registrations) {
+                    registration.unregister();
+                }
+                // After a tiny delay, register the fresh service worker
+                setTimeout(() => {
+                    navigator.serviceWorker.register("music-sw.js", { scope: "/" });
+                }, 200);
+            });
         }
     </script>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>

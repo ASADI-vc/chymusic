@@ -123,3 +123,15 @@
         max-height: 300px;
     }
 }
+
+.donate-pill {
+    background: linear-gradient(135deg, rgba(247, 79, 111, 0.2), rgba(255, 177, 75, 0.16));
+    color: #fff;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.donate-pill:hover {
+    background: linear-gradient(135deg, rgba(247, 79, 111, 0.35), rgba(255, 177, 75, 0.25));
+    transform: translateX(4px);
+}

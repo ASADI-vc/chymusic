@@ -1,72 +1,52 @@
 window.musicCache = (() => {
-    const dbName = "musicweb-player-cache";
-    const storeName = "tracks";
-    const settingsStore = "settings";
     const memoryUrls = new Map();
-
     let directoryHandle = null;
+    const manifestName = "manifest.json";
 
-    // ---------- IndexedDB ----------
-    function openDb() {
+    // ---------- File System Access utilities ----------
+    function isFileSystemAccessSupported() {
+        return 'showDirectoryPicker' in window;
+    }
+
+    async function getSetting(key) {
+        // We use a small IndexedDB for storing the directory handle only
         return new Promise((resolve, reject) => {
-            const request = indexedDB.open(dbName, 2);
+            const request = indexedDB.open("musicweb-settings", 1);
             request.onupgradeneeded = () => {
                 const db = request.result;
-                if (!db.objectStoreNames.contains(storeName)) {
-                    db.createObjectStore(storeName, { keyPath: "id" });
-                }
-                if (!db.objectStoreNames.contains(settingsStore)) {
-                    db.createObjectStore(settingsStore, { keyPath: "key" });
+                if (!db.objectStoreNames.contains("settings")) {
+                    db.createObjectStore("settings", { keyPath: "key" });
                 }
             };
-            request.onsuccess = () => resolve(request.result);
+            request.onsuccess = () => {
+                const db = request.result;
+                const tx = db.transaction("settings", "readonly");
+                const req = tx.objectStore("settings").get(key);
+                req.onsuccess = () => resolve(req.result?.value ?? null);
+                req.onerror = () => reject(req.error);
+            };
             request.onerror = () => reject(request.error);
         });
     }
 
-    async function readTrack(id) {
-        const db = await openDb();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(storeName, "readonly");
-            const req = tx.objectStore(storeName).get(id);
-            req.onsuccess = () => resolve(req.result ?? null);
-            req.onerror = () => reject(req.error);
-        });
-    }
-
-    async function writeTrack(record) {
-        const db = await openDb();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(storeName, "readwrite");
-            tx.objectStore(storeName).put(record);
-            tx.oncomplete = () => resolve(true);
-            tx.onerror = () => reject(tx.error);
-        });
-    }
-
-    async function getSetting(key) {
-        const db = await openDb();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(settingsStore, "readonly");
-            const req = tx.objectStore(settingsStore).get(key);
-            req.onsuccess = () => resolve(req.result?.value ?? null);
-            req.onerror = () => reject(req.error);
-        });
-    }
-
     async function setSetting(key, value) {
-        const db = await openDb();
         return new Promise((resolve, reject) => {
-            const tx = db.transaction(settingsStore, "readwrite");
-            tx.objectStore(settingsStore).put({ key, value });
-            tx.oncomplete = () => resolve(true);
-            tx.onerror = () => reject(tx.error);
+            const request = indexedDB.open("musicweb-settings", 1);
+            request.onupgradeneeded = () => {
+                const db = request.result;
+                if (!db.objectStoreNames.contains("settings")) {
+                    db.createObjectStore("settings", { keyPath: "key" });
+                }
+            };
+            request.onsuccess = () => {
+                const db = request.result;
+                const tx = db.transaction("settings", "readwrite");
+                tx.objectStore("settings").put({ key, value });
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            };
+            request.onerror = () => reject(request.error);
         });
-    }
-
-    // ---------- File System Access ----------
-    function isFileSystemAccessSupported() {
-        return 'showDirectoryPicker' in window;
     }
 
     async function hasStoredHandle() {
@@ -77,10 +57,8 @@ window.musicCache = (() => {
 
     async function reconnectFolder() {
         if (!isFileSystemAccessSupported()) return false;
-
         const stored = await getSetting('directoryHandle');
         if (!stored) return false;
-
         try {
             const permission = await stored.requestPermission({ mode: 'readwrite' });
             if (permission === 'granted') {
@@ -96,7 +74,6 @@ window.musicCache = (() => {
 
     async function requestFolderAccess() {
         if (!isFileSystemAccessSupported()) return false;
-
         try {
             const handle = await window.showDirectoryPicker();
             const perm = await handle.requestPermission({ mode: 'readwrite' });
@@ -107,11 +84,8 @@ window.musicCache = (() => {
                 return true;
             }
         } catch (err) {
-            if (err.name === 'AbortError') {
-                console.log('User cancelled folder selection.');
-            } else {
-                console.error('Folder selection error:', err);
-            }
+            if (err.name === 'AbortError') console.log('User cancelled.');
+            else console.error('Folder error:', err);
         }
         return false;
     }
@@ -120,152 +94,163 @@ window.musicCache = (() => {
         return directoryHandle !== null;
     }
 
-    // Sanitize filename
     function sanitizeFilename(name) {
         return name.replace(/[/\\?%*:|"<>]/g, '-');
     }
 
-    /**
-     * Extract the original track filename from a proxy URL.
-     * Example proxy URL: /proxy.php?url=https://dl.musicsbaran.ir/.../track.mp3
-     * Returns the last path segment of the 'url' parameter.
-     */
-    function getOriginalFilename(proxyUrl) {
+    // ---------- Filename helpers ----------
+    function getOriginalName(proxyUrl) {
         if (proxyUrl && proxyUrl.includes('/proxy.php?url=')) {
             const queryString = proxyUrl.split('?url=')[1];
             if (queryString) {
                 const decoded = decodeURIComponent(queryString);
                 const parts = decoded.split('/');
-                let filename = parts.pop() || '';
-                if (!filename.includes('.')) filename += '.mp3';
-                return sanitizeFilename(filename);
+                let name = parts.pop() || '';
+                if (!name.includes('.')) name += '.mp3';
+                return sanitizeFilename(name);
             }
         }
-        // Fallback: use the last path segment of the URL
         const parts = proxyUrl.split('/');
-        let filename = parts.pop() || '';
-        if (!filename.includes('.')) filename += '.mp3';
-        return sanitizeFilename(filename);
+        let name = parts.pop() || '';
+        if (!name.includes('.')) name += '.mp3';
+        return sanitizeFilename(name);
     }
 
-    async function getTrackFileHandle(id, proxyUrl, create = false) {
-        if (!directoryHandle) return null;
+    function getUniqueFilename(id, proxyUrl) {
+        return `${id}_${getOriginalName(proxyUrl)}`;
+    }
 
-        const filename = getOriginalFilename(proxyUrl);
+    // ---------- Manifest (JSON file in folder) ----------
+    async function readManifest() {
+        if (!directoryHandle) return {};
         try {
-            return await directoryHandle.getFileHandle(filename, { create });
+            const fileHandle = await directoryHandle.getFileHandle(manifestName, { create: false });
+            const file = await fileHandle.getFile();
+            const text = await file.text();
+            return JSON.parse(text);
         } catch {
-            return null;
+            return {};
         }
+    }
+
+    async function writeManifest(manifest) {
+        if (!directoryHandle) return;
+        try {
+            const fileHandle = await directoryHandle.getFileHandle(manifestName, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(JSON.stringify(manifest));
+            await writable.close();
+        } catch (err) {
+            console.warn('Manifest write failed:', err);
+        }
+    }
+
+    async function addToManifest(id, filename, size = 0) {
+        const manifest = await readManifest();
+        manifest[id] = { filename, size };
+        await writeManifest(manifest);
     }
 
     // ---------- Public API ----------
+
+    /**
+     * Returns a playable URL only if the file exists on disk.
+     * No IndexedDB, no in‑browser caching.
+     */
     async function getPlayableUrl(id, remoteUrl) {
-        // Memory cache
         if (memoryUrls.has(id)) {
             return memoryUrls.get(id);
         }
 
-        // IndexedDB
-        const record = await readTrack(id);
-        if (record?.blob) {
-            const url = URL.createObjectURL(record.blob);
-            memoryUrls.set(id, url);
-            return url;
-        }
+        if (!directoryHandle || !remoteUrl) return null;
 
-        // File system – if record missing but we have folder access
-        if (directoryHandle && remoteUrl) {
-            try {
-                const fileHandle = await getTrackFileHandle(id, remoteUrl, false);
-                if (fileHandle) {
-                    const file = await fileHandle.getFile();
-                    // Rebuild the IndexedDB record so it doesn't re-download
-                    await writeTrack({
-                        id,
-                        remoteUrl,
-                        blob: null,       // blob is on disk now
-                        cachedAt: new Date().toISOString()
-                    });
-                    const url = URL.createObjectURL(file);
-                    memoryUrls.set(id, url);
-                    return url;
+        try {
+            const manifest = await readManifest();
+            const uniqueName = getUniqueFilename(id, remoteUrl);
+            let fileHandle = null;
+
+            // 1. Manifest entry
+            if (manifest[id]?.filename) {
+                try {
+                    fileHandle = await directoryHandle.getFileHandle(manifest[id].filename, { create: false });
+                } catch {}
+            }
+            // 2. Unique name
+            if (!fileHandle) {
+                try {
+                    fileHandle = await directoryHandle.getFileHandle(uniqueName, { create: false });
+                } catch {}
+            }
+
+            if (fileHandle) {
+                const file = await fileHandle.getFile();
+                if (!manifest[id]) {
+                    await addToManifest(id, uniqueName, file.size);
                 }
-            } catch { /* file not found in folder */ }
+                const url = URL.createObjectURL(file);
+                memoryUrls.set(id, url);
+                return url;
+            }
+        } catch (err) {
+            console.warn('getPlayableUrl error:', err);
         }
 
         return null;
     }
 
     /**
-     * Prefetch and cache a track for offline use.
-     * If it already exists in IndexedDB or in the file system, no download occurs.
+     * Download and save to folder only. No in‑browser blob storage.
      */
     async function prefetchTrack(id, proxyUrl) {
-        // Already cached in IndexedDB
-        const existing = await readTrack(id);
-        if (existing?.blob) return true;
+        if (!directoryHandle) return false;
 
-        // Check file system – if present, just update IndexedDB
-        if (directoryHandle) {
-            try {
-                const fileHandle = await getTrackFileHandle(id, proxyUrl, false);
-                if (fileHandle) {
+        // Check if already on disk
+        try {
+            const manifest = await readManifest();
+            const uniqueName = getUniqueFilename(id, proxyUrl);
+            let fileHandle = null;
+
+            if (manifest[id]?.filename) {
+                try { fileHandle = await directoryHandle.getFileHandle(manifest[id].filename, { create: false }); } catch {}
+            }
+            if (!fileHandle) {
+                try { fileHandle = await directoryHandle.getFileHandle(uniqueName, { create: false }); } catch {}
+            }
+
+            if (fileHandle) {
+                if (!manifest[id]) {
                     const file = await fileHandle.getFile();
-                    await writeTrack({ id, remoteUrl: proxyUrl, blob: null, cachedAt: new Date().toISOString() });
-                    return true;
-                }
-            } catch { /* not in folder */ }
-        }
-
-        // Download from network with retry
-        const maxRetries = 3;
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-                const response = await fetch(proxyUrl, {
-                    mode: "cors",
-                    cache: "no-store",
-                    credentials: "omit",
-                    referrerPolicy: "no-referrer",
-                });
-
-                if (!response.ok) {
-                    if (response.status === 403 && attempt < maxRetries) {
-                        await new Promise(r => setTimeout(r, 500 * attempt));
-                        continue;
-                    }
-                    return false;
-                }
-
-                const contentType = response.headers.get('Content-Type') || '';
-                if (!contentType.startsWith('audio/') && contentType !== 'application/octet-stream') {
-                    console.warn('Prefetch returned non‑audio content type:', contentType);
-                    return false;
-                }
-
-                const blob = await response.blob();
-                await writeTrack({ id, remoteUrl: proxyUrl, blob, cachedAt: new Date().toISOString() });
-
-                if (directoryHandle) {
-                    try {
-                        const fileHandle = await getTrackFileHandle(id, proxyUrl, true);
-                        const writable = await fileHandle.createWritable();
-                        await writable.write(blob);
-                        await writable.close();
-                    } catch (fsError) {
-                        console.warn('File system write failed:', fsError);
-                    }
+                    await addToManifest(id, uniqueName, file.size);
                 }
                 return true;
-            } catch (error) {
-                if (attempt === maxRetries) {
-                    console.warn('Prefetch failed after retries:', error);
-                    return false;
-                }
-                await new Promise(r => setTimeout(r, 500 * attempt));
             }
+        } catch {}
+
+        // Download from network (proxy URL) and save to folder
+        try {
+            const response = await fetch(proxyUrl, {
+                mode: "cors",
+                cache: "no-store",
+                credentials: "omit",
+                referrerPolicy: "no-referrer",
+            });
+            if (!response.ok) return false;
+
+            const blob = await response.blob();
+            const uniqueName = getUniqueFilename(id, proxyUrl);
+            const fileHandle = await directoryHandle.getFileHandle(uniqueName, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            await addToManifest(id, uniqueName, blob.size);
+
+            // Also keep in memory for immediate playback
+            memoryUrls.set(id, URL.createObjectURL(blob));
+            return true;
+        } catch (err) {
+            console.warn('Prefetch failed:', err);
+            return false;
         }
-        return false;
     }
 
     function revokeBlobUrl(id) {
