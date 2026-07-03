@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: theme('colors.chy.bg');
+  color: theme('colors.chy.fg');
+  font-family: theme('fontFamily.sans');
+  -webkit-font-smoothing: antialiased;
+}

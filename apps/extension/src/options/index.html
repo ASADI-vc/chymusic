@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>CHYMUSIC Extension — Settings</title>
+    <style>
+      body { font-family: -apple-system, system-ui, sans-serif; background: #0d1117; color: #f0f6fc; padding: 32px; max-width: 720px; margin: 0 auto; }
+      h1 { font-size: 24px; }
+      h2 { font-size: 16px; margin-top: 24px; }
+      .perm-row { display: flex; align-items: center; justify-content: space-between; padding: 8px; background: rgba(255,255,255,0.03); border-radius: 6px; margin-bottom: 4px; }
+      .perm-row button { background: #d33; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>CHYMUSIC Extension Settings</h1>
+    <p style="color: #9198a1;">Manage per-site permissions and view cached files.</p>
+
+    <h2>Granted permissions</h2>
+    <div id="perms"></div>
+
+    <h2>How it works</h2>
+    <p style="font-size: 13px; line-height: 1.5;">
+      When you visit a website that has audio (music, podcast, Noheh), the extension detects it
+      and asks for permission to cache. Once granted, every audio file you visit on that site
+      is automatically downloaded to <code>~/Downloads/CHYMUSIC/audio/</code> (or to your chosen
+      folder if the standalone PWA is open and connected).
+    </p>
+
+    <script src="./main.ts"></script>
+  </body>
+</html>

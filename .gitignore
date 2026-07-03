@@ -1,78 +1,85 @@
-# Build outputs and intermediate files
-[Bb]in/
-[Oo]bj/
+# Dependencies
+node_modules/
+.pnpm-store/
+.yarn/
+.pnp.*
 
-# User-specific files
-*.rsuser
-*.suo
-*.user
-*.userosscache
-*.sln.docstates
+# Build outputs
+dist/
+build/
+.next/
+out/
+.turbo/
+.cache/
+*.tsbuildinfo
 
-# Visual Studio / Rider / VS Code cache files
-.vs/
-.idea/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+*.pem
+*.key
+
+# IDE / Editor
 .vscode/
+.idea/
 *.swp
 *.swo
+*.sw*
 
-# Build results
-[Dd]ebug/
-[Dd]ebugPublic/
-[Rr]elease/
-[Rr]eleases/
-x64/
-x86/
-[Aa]rm/
-[Aa]rm64/
-bld/
-
-# NuGet / package management
-packages/
-*.nupkg
-*.snupkg
-project.lock.json
-project.assets.json
-*.nuget.props
-*.nuget.targets
-
-# .NET Core / ASP.NET Core specific
-appsettings.Development.json
-launchSettings.json
-*.log
-*.tmp
-*.pid
-*.seed
-*.pid.lock
-
-# Blazor WASM specific – client-side framework files are generated
-wwwroot/_framework/
-wwwroot/_content/
-wwwroot/data/
-
-# Node / JavaScript (if you use npm / Node tools)
-node_modules/
-npm-debug.log
-yarn-error.log
-
-# Publish output
-[Mm]icrosoft/
-[Pp]ublish/
-
-# Test results
-[Tt]est[Rr]esults/
-*.trx
-*.coverage
-*.coveragexml
-
-# OS generated files
-Thumbs.db
+# OS files
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
+Thumbs.db
 ehthumbs.db
+._*
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Databases (local dev only)
 *.db
-appsettings.json
-*.txt
+*.db-journal
+*.sqlite
+*.sqlite-journal
+*.sqlite3
+
+# Test & coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# Generated data (admin-api)
+services/admin-api/data/raw/
+services/admin-api/data/processed/
+services/admin-api/data/exports/
+
+# PWA build artifacts (kept out of git; built locally)
+apps/standalone/public/sw.js
+apps/standalone/public/workbox-*.js
+
+# Extension packaged build
+apps/extension/dist/
+apps/extension/*.zip
+
+# Misc
+.tmp/
+tmp/

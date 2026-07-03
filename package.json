@@ -1,0 +1,32 @@
+{
+  "name": "chymusic",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CHYMUSIC — a hybrid client-side music platform with browser extension caching, smart shuffle, and a FastAPI admin back-office.",
+  "license": "MIT",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter=./apps/* --filter=./packages/* run dev",
+    "dev:standalone": "pnpm --filter @chymusic/standalone dev",
+    "dev:admin-ui": "pnpm --filter @chymusic/admin-ui dev",
+    "dev:admin-api": "pnpm --filter @chymusic/admin-api dev",
+    "dev:extension": "pnpm --filter @chymusic/extension dev",
+    "build": "pnpm -r run build",
+    "build:standalone": "pnpm --filter @chymusic/standalone build",
+    "build:admin-ui": "pnpm --filter @chymusic/admin-ui build",
+    "build:extension": "pnpm --filter @chymusic/extension build",
+    "build:shared": "pnpm --filter @chymusic/shared build",
+    "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "clean": "pnpm -r exec rm -rf dist .turbo .next node_modules/.cache"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "prettier": "^3.3.0"
+  }
+}
